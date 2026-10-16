@@ -578,7 +578,6 @@ final class ClaudeService {
     /// `history` holds the previous exchanges of this voice conversation (memory only).
     /// nil on any failure: no key, network, quota.
     func voiceAnswer(_ question: String, history: [VoiceWebTurn], french: Bool) async -> String? {
-        guard let key = apiKey, !key.isEmpty else { return nil }
         let today = Date().formatted(.dateTime.weekday(.wide).day().month(.wide).year()
             .locale(Locale(identifier: french ? "fr_FR" : "en_US")))
         let system = french
@@ -596,6 +595,17 @@ final class ClaudeService {
               opening hours, weather, people). Give the useful facts straight away. \
               When there is clearly more worth telling, end with one short question offering to go on.
               """
+        if ClaudeAccess.usesClaudeCode {
+            // The Claude Code login: a one-off run with web search; the history goes in the text.
+            let earlier = history.map { "Q: \($0.question)\nA: \($0.answer)" }.joined(separator: "\n\n")
+            let prompt = earlier.isEmpty ? question : "\(earlier)\n\nNow: \(question)"
+            guard let text = try? await ClaudeCodeUtility.shared.complete(
+                .voiceWeb, system: system, text: prompt, model: "haiku",
+                tools: ["WebSearch"], timeout: 45, fresh: true) else { return nil }
+            let spoken = VoiceQuery.spokenText(text)
+            return spoken.isEmpty ? nil : spoken
+        }
+        guard let key = apiKey, !key.isEmpty else { return nil }
         var messages: [[String: Any]] = []
         for turn in history {
             messages.append(["role": "user", "content": turn.question])

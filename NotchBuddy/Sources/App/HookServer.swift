@@ -387,6 +387,26 @@ final class HookServer: @unchecked Sendable {
             return
         }
 
+        #if !APPSTORE
+        // Voice tools for the Claude Code voice brain (coucou-mcp.py): answered once the
+        // tool has run on the main actor.
+        if coucouKind == "mcp_voice" {
+            guard payload["token"] as? String == CoucouMCP.token else {
+                sendLine(fd: fd, text: CoucouMCP.json(CoucouMCP.callResult(text: "Not a Coucou voice session.", isError: true)))
+                close(fd)
+                return
+            }
+            Task { @MainActor in
+                let reply = await ClaudeVoiceBrain.shared.handleMCP(payload)
+                Task.detached { [weak self] in
+                    self?.sendLine(fd: fd, text: reply)
+                    close(fd)
+                }
+            }
+            return
+        }
+        #endif
+
         // AskUserQuestion via --ask PreToolUse hook — hold fd open like PermissionRequest
         if coucouKind == "ask_user_question" {
             let toolInput = payload["tool_input"] as? [String: Any] ?? [:]
@@ -1324,6 +1344,8 @@ final class HookServer: @unchecked Sendable {
         let pyURL = wrapperURL.deletingLastPathComponent().appendingPathComponent("nb-hook.py")
         try? nbHookPythonGitHub.write(to: pyURL, atomically: true, encoding: .utf8)
         _ = try? FileManager.default.setAttributes([.posixPermissions: 0o755 as NSNumber], ofItemAtPath: pyURL.path)
+        // coucou-mcp.py: the voice tools for the Claude Code voice brain
+        CoucouMCP.install()
         #endif
     }
 

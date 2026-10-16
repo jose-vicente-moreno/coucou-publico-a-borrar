@@ -21,8 +21,10 @@ use"). Do not replace this with an OAuth flow or by reading Claude Code's keycha
 | Feature | Process | Folder | Model | Tools |
 |---|---|---|---|---|
 | Chat (provider "Claude Code") | one per conversation, `--resume` across restarts | the brain folder (Settings → Chat) | Settings (opus / sonnet / haiku) | Claude Code's own; read-only ones pre-approved |
+| Voice ("OK Coucou") | one per voice conversation | app folder, no user settings | haiku | WebSearch + `mcp__coucou__*` |
 | Flow clean-up | warm, renewed every 5 requests | app folder | haiku | none |
 | Notetaker summary | one-off | app folder | sonnet | none |
+| Voice web answer | one-off | app folder | haiku | WebSearch |
 
 `ClaudeCodeSession` (App/ClaudeCode) owns the process: one turn at a time, timeout →
 kill → the next turn resumes the conversation, idle → stdin closed so Claude Code ends
@@ -52,6 +54,16 @@ Code when it is installed and either no key is saved or the chat uses it.
 - Print mode skips the folder-trust prompt: the brain folder's project hooks run. Only
   pick a folder you trust.
 
+### Voice tools over MCP
+
+Claude Code only takes custom tools from MCP servers. At launch Coucou writes
+`~/Library/Application Support/NotchBuddy/coucou-mcp.py`, a stdio MCP server that relays
+`tools/list` and `tools/call` to the app over `nb.sock` (`coucou_kind: "mcp_voice"`).
+ClaudeVoiceBrain answers with the same tool definitions and the same `run(tool:input:)`
+as the API path, and only while one of its own voice turns is running. Each launch makes
+a new token, handed to the relay through its MCP environment; a request without it is
+refused, so other local processes can't drive the tools.
+
 ## The brain's own settings: `.coucou/brain.json`
 
 Coucou knows nothing about how a given vault is organised. A brain can describe itself
@@ -78,11 +90,13 @@ Without the file, the card offers Ask and Obsidian, and « Save to brain » writ
 
 - Chat, warm process: about 1 s per short turn; first turn of a conversation 2.5–3.5 s.
 - Brain questions that read notes: 8–12 s.
+- Voice tool call (pause the music) end to end: about 4 s cold.
 
 ## Checks
 
 ```sh
 bash scripts/test-claude-code.sh   # parser, arguments, process session (fake CLI)
+bash scripts/test-coucou-mcp.sh    # MCP bridge: tool conversion + stdio protocol
 bash scripts/test-brain-config.sh  # .coucou/brain.json parsing
 bash scripts/test-brain-status.sh  # Brain card counters
 bash scripts/test-brain-inbox.sh   # « Save to brain »

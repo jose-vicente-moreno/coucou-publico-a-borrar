@@ -257,6 +257,38 @@
         }
       }
     },
+    "Answer with Claude Code (your Claude login)" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Responder con Claude Code (tu cuenta de Claude)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Répondre avec Claude Code (ton compte Claude)"
+          }
+        }
+      }
+    },
+    "What you say after « OK Coucou » goes to Anthropic through your own `claude` command. Off: Coucou understands the phrases it knows, on the Mac." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo que dices después de « OK Coucou » va a Anthropic a través de tu propio comando `claude`. Desactivado: Coucou entiende las frases que conoce, en el Mac."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce que tu dis après « OK Coucou » part chez Anthropic via ta propre commande `claude`. Désactivé : Coucou comprend les phrases qu'il connaît, sur le Mac."
+          }
+        }
+      }
+    },
     "Your Claude login · %@" : {
       "localizations" : {
         "es" : {

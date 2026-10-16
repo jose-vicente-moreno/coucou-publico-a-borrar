@@ -24,4 +24,14 @@ enum ClaudeAccess {
     }
 
     static var isAvailable: Bool { hasAPIKey || claudeCodeInstalled }
+
+    /// "OK Coucou" may use Claude: a key, or Claude Code once the user turned it on
+    /// (Settings → Voice), since it sends what is said to Anthropic.
+    static var voiceAvailable: Bool {
+        #if !APPSTORE
+        hasAPIKey || (claudeCodeInstalled && VoiceSettings.claudeCodeVoiceEnabled)
+        #else
+        hasAPIKey
+        #endif
+    }
 }

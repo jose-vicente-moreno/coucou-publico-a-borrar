@@ -277,6 +277,7 @@
 		B2584220B877056366C8DCAE /* MochiWardrobe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79A7807ADD0963FF260D1FAD /* MochiWardrobe.swift */; };
 		B2D86BE268D6F4C86BD0C446 /* ChatMarkdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = D797CC384B5BC70D34F121BC /* ChatMarkdown.swift */; };
 		B314F09AD7924387D0E04B45 /* BotEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66E6F5FC81429871B6F766A8 /* BotEngine.swift */; };
+		B3A89D66101033D1D0EA8E33 /* CoucouMCP.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D4BA129B7B4C035163EEBA0 /* CoucouMCP.swift */; };
 		B3EC9CF3C8BD629C3530E8F1 /* sounds in Resources */ = {isa = PBXBuildFile; fileRef = C066E2B991AA4F56B2724263 /* sounds */; };
 		B43ED72DC305F4A70A391094 /* PillSessionRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EF1D0C0784ED873065DD8C0 /* PillSessionRegistry.swift */; };
 		B47A83278A3FE52FF5418BDD /* ClaudeCodeUtility.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E2867B2F0A5DE7ED7BF72B /* ClaudeCodeUtility.swift */; };
@@ -382,6 +383,7 @@
 		ED5D9A334DE08C0EB81DE322 /* AskQuestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBB84A66045EB20CAC93A8A6 /* AskQuestion.swift */; };
 		ED62D1B9E6A35B1F85074A2A /* SharedSessions.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1064AD8471C51AFF4F12258 /* SharedSessions.swift */; };
 		EE3AB10544113500486A9684 /* ColorHex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ACB4350729C6513824D1ADF /* ColorHex.swift */; };
+		EF49973608B1DB7541069ACD /* CoucouMCP.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D4BA129B7B4C035163EEBA0 /* CoucouMCP.swift */; };
 		EF5562030A7BA718EFA63278 /* VoiceDataSources.swift in Sources */ = {isa = PBXBuildFile; fileRef = F289B4DB7C57BC593C2E7B7F /* VoiceDataSources.swift */; };
 		EF584BA65AA62FCABD6FB6B2 /* FlowKeyLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4983B1317913482E61EB344D /* FlowKeyLogic.swift */; };
 		EF9E6418C3F39F6FE88FD812 /* CoucouPhoneApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D9CEB5655FCA197D6B10A91 /* CoucouPhoneApp.swift */; };
@@ -482,6 +484,7 @@
 		29E156CF1C215B8FE713B3A0 /* TurnShare.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnShare.swift; sourceTree = "<group>"; };
 		2A1C4152EBDBD7C24CABFFD7 /* TurnSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnSnapshot.swift; sourceTree = "<group>"; };
 		2A67DA3B8EEF063C44E07F7E /* ConversationContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationContext.swift; sourceTree = "<group>"; };
+		2D4BA129B7B4C035163EEBA0 /* CoucouMCP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoucouMCP.swift; sourceTree = "<group>"; };
 		2EF78999D68D56ADE4CEFBE2 /* StripePoller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripePoller.swift; sourceTree = "<group>"; };
 		3104222B3F17BA5E8DEA5277 /* CalcomPoller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalcomPoller.swift; sourceTree = "<group>"; };
 		3232F258523DD8D09B670363 /* FileDropView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileDropView.swift; sourceTree = "<group>"; };
@@ -677,6 +680,7 @@
 				B3B32CBBE343EE049BF3EE5B /* ClaudeCodeSettingsBox.swift */,
 				1BBD8EF0FF4AA6525C313719 /* ClaudeCodeStream.swift */,
 				B9E2867B2F0A5DE7ED7BF72B /* ClaudeCodeUtility.swift */,
+				2D4BA129B7B4C035163EEBA0 /* CoucouMCP.swift */,
 			);
 			path = ClaudeCode;
 			sourceTree = "<group>";
@@ -1215,6 +1219,7 @@
 				9AD370335A3ECC9C82375F93 /* CodexPlanGauge.swift in Sources */,
 				EE3AB10544113500486A9684 /* ColorHex.swift in Sources */,
 				E5D08513CFEA5D5E6760ECA4 /* ConversationContext.swift in Sources */,
+				B3A89D66101033D1D0EA8E33 /* CoucouMCP.swift in Sources */,
 				DEDE942C3CD3F30B492BEEF5 /* CryptoController.swift in Sources */,
 				2405F4EC8C89EE56F612BE2B /* CryptoViews.swift in Sources */,
 				B0CE5AC8B579866A14BD61D0 /* DemoEngine.swift in Sources */,
@@ -1450,6 +1455,7 @@
 				EB1D9680D3DB0F0707D4A043 /* CodexPlanGauge.swift in Sources */,
 				9ECEE890D4486B6E83BD5B7F /* ColorHex.swift in Sources */,
 				4F4176856B544D8C620B6204 /* ConversationContext.swift in Sources */,
+				EF49973608B1DB7541069ACD /* CoucouMCP.swift in Sources */,
 				D69E561062D9358837380ABD /* CryptoController.swift in Sources */,
 				3C8CBC6F9B6B3AEC1AD6647C /* CryptoViews.swift in Sources */,
 				F157D7A9BF878DB2B286B1F7 /* DemoEngine.swift in Sources */,

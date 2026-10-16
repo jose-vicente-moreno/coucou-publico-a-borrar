@@ -1370,7 +1370,9 @@ struct SettingsView: View {
     @AppStorage("voiceElevenGender")   private var elevenGender: String = "female"
     @AppStorage("voicePitchFemale")    private var pitchFemale: Double = VoiceSettings.defaultPitchFemale
     @AppStorage("voicePitchMale")      private var pitchMale: Double = VoiceSettings.defaultPitchMale
-    @State private var webKeySaved: Bool = !(KeychainStore.shared.get("anthropic-api-key") ?? "").isEmpty
+    /// Claude can answer by voice: Claude Code login or Anthropic key.
+    @State private var webKeySaved: Bool = ClaudeAccess.voiceAvailable
+    @AppStorage("voiceClaudeCodeBrain") private var claudeCodeVoice: Bool = false
     @State private var elevenKeyDraft: String = ""
     @State private var elevenKeySaved: Bool = KeychainStore.shared.get(ElevenLabsTTS.keyName) != nil
 
@@ -1401,7 +1403,18 @@ struct SettingsView: View {
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .onAppear { webKeySaved = !(KeychainStore.shared.get("anthropic-api-key") ?? "").isEmpty }
+                .onAppear { webKeySaved = ClaudeAccess.voiceAvailable }
+
+                #if !APPSTORE
+                if ClaudeAccess.claudeCodeInstalled && !ClaudeAccess.hasAPIKey {
+                    Toggle("Answer with Claude Code (your Claude login)", isOn: $claudeCodeVoice)
+                        .onChange(of: claudeCodeVoice) { _, _ in webKeySaved = ClaudeAccess.voiceAvailable }
+                    Text("What you say after « OK Coucou » goes to Anthropic through your own `claude` command. Off: Coucou understands the phrases it knows, on the Mac.")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                #endif
 
                 if voiceEngine.recognizerUnavailable {
                     HStack(spacing: 6) {

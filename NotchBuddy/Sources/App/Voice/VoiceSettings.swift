@@ -77,6 +77,14 @@ enum VoiceSettings {
         return v == 0 ? fallback : min(1.6, max(0.8, v))
     }
 
+    /// Without an API key, Claude Code (the user's Claude login) is the voice brain only
+    /// once this is on: what is said after "OK Coucou" then goes to Anthropic. Off by
+    /// default, so installing Claude Code never sends speech anywhere by itself.
+    static var claudeCodeVoiceEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: "voiceClaudeCodeBrain") }
+        set { UserDefaults.standard.set(newValue, forKey: "voiceClaudeCodeBrain") }
+    }
+
     /// Claude is Coucou's brain (the user's Anthropic API key): what I say after
     /// "OK Coucou" goes to Claude, which acts with Coucou's tools and searches the web.
     /// Off by default: my words leave the Mac only once this is turned on.
