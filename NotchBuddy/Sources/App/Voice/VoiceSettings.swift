@@ -55,10 +55,21 @@ enum VoiceSettings {
         set { UserDefaults.standard.set(newValue, forKey: "voiceLanguageOfferDone") }
     }
 
-    /// Voice used to answer: "system" (macOS voices) or "elevenlabs" (user's API key).
+    /// Voice used to answer: "system" (macOS voices), "voicestudio" (local open-source
+    /// voices, VoiceStudio on this Mac) or "elevenlabs" (user's API key).
     static var ttsEngine: String {
         get { UserDefaults.standard.string(forKey: "voiceTTSEngine") ?? "system" }
         set { UserDefaults.standard.set(newValue, forKey: "voiceTTSEngine") }
+    }
+    /// VoiceStudio's address (any OpenAI-compatible speech server works).
+    static var voiceStudioURL: String {
+        get { UserDefaults.standard.string(forKey: "voiceStudioURL") ?? VoiceStudioAPI.defaultBaseURL }
+        set { UserDefaults.standard.set(newValue, forKey: "voiceStudioURL") }
+    }
+    /// VoiceStudio voice id; empty = the first one in the answer's language.
+    static var voiceStudioVoice: String {
+        get { UserDefaults.standard.string(forKey: "voiceStudioVoice") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "voiceStudioVoice") }
     }
     /// ElevenLabs voice: "female" (default) or "male".
     static var elevenGender: String {

@@ -257,6 +257,134 @@
         }
       }
     },
+    "Check" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprobar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vérifier"
+          }
+        }
+      }
+    },
+    "Checking…" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprobando…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vérification…"
+          }
+        }
+      }
+    },
+    "Open VoiceStudio" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir VoiceStudio"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir VoiceStudio"
+          }
+        }
+      }
+    },
+    "Automatic (answer language)" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automática (idioma de respuesta)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatique (langue de réponse)"
+          }
+        }
+      }
+    },
+    "Local open-source voices: VoiceStudio runs on this Mac, no key, nothing leaves it. While it is closed, the Mac voice answers." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voces locales de código abierto: VoiceStudio funciona en este Mac, sin clave, y nada sale de él. Mientras está cerrado, responde la voz del Mac."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voix locales open source : VoiceStudio tourne sur ce Mac, sans clé, rien n'en sort. Tant qu'il est fermé, c'est la voix du Mac qui répond."
+          }
+        }
+      }
+    },
+    "VoiceStudio isn't answering." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VoiceStudio no responde."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VoiceStudio ne répond pas."
+          }
+        }
+      }
+    },
+    "Connected (no voice list: its default voice is used)." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conectado (sin lista de voces: se usa su voz por defecto)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connecté (pas de liste de voix : sa voix par défaut est utilisée)."
+          }
+        }
+      }
+    },
+    "Connected · %lld voices" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conectado · %lld voces"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connecté · %lld voix"
+          }
+        }
+      }
+    },
     "Answer with Claude Code (your Claude login)" : {
       "localizations" : {
         "es" : {

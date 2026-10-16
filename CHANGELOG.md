@@ -6,6 +6,7 @@
 - **Flow and Notetaker on the same login** — Flow clean-up and Notetaker summaries use Claude Code when no Anthropic key is saved
 - **Brain pill** — your brain's queues in the notch (counts and quick actions from the brain's own `.coucou/brain.json`, see [docs/brain.example.json](docs/brain.example.json)), and « Save to brain » for a file dropped on the notch
 - **« OK Coucou » through Claude Code** — opt-in (Settings → Voice): with no key, your Claude login answers, and Coucou's voice tools reach it through a small local MCP server
+- **VoiceStudio voices** — local open-source voices for Coucou's answers (Settings → Voice → VoiceStudio): no key, nothing leaves the Mac, the Mac voice takes over while VoiceStudio is closed. ElevenLabs stays available
 
 ## Windows and Linux 0.5.0 — October 15, 2026
 

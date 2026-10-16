@@ -1493,10 +1493,15 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Picker(String(localized: "voice.tts-engine"), selection: $ttsEngine) {
                     Text(String(localized: "voice.tts-system")).tag("system")
+                    Text(verbatim: "VoiceStudio (local)").tag("voicestudio")
                     Text(verbatim: "ElevenLabs").tag("elevenlabs")
                 }
                 .labelsHidden()   // the box is already titled "Voice"
                 .frame(maxWidth: 260)
+
+                if ttsEngine == "voicestudio" {
+                    VoiceStudioSettingsRow()
+                }
 
                 if ttsEngine == "elevenlabs" {
                     HStack(spacing: 6) {
