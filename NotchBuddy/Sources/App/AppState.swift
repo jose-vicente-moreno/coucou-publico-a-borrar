@@ -145,6 +145,15 @@ final class AppState: ObservableObject {
     @Published var moonshotChatModel: String = ChatProvider.moonshot.defaultModel {
         didSet { UserDefaults.standard.set(moonshotChatModel, forKey: "moonshotChatModel") }
     }
+    /// Claude Code chat: a model alias the CLI resolves (opus / sonnet / haiku).
+    @Published var claudeCodeModel: String = ChatProvider.claudeCode.defaultModel {
+        didSet { UserDefaults.standard.set(claudeCodeModel, forKey: "claudeCodeChatModel") }
+    }
+    /// Folder the Claude Code chat runs in — the user's "brain" (its CLAUDE.md,
+    /// skills and agents come along). Empty = the home folder.
+    @Published var brainVaultPath: String = "" {
+        didSet { UserDefaults.standard.set(brainVaultPath, forKey: "brainVaultPath") }
+    }
     @Published var ollamaServerURL: String = "" {
         didSet { UserDefaults.standard.set(ollamaServerURL, forKey: "ollamaServerURL") }
     }
@@ -201,6 +210,16 @@ final class AppState: ObservableObject {
             }
             return
         }
+        #if !APPSTORE
+        // Claude Code: the CLI resolves aliases itself, nothing to fetch.
+        if provider == .claudeCode {
+            fetchedProviderModels[provider] = ClaudeCodeChat.models
+            if !ClaudeCodeChat.models.contains(where: { $0.id == claudeCodeModel }) {
+                claudeCodeModel = ChatProvider.claudeCode.defaultModel
+            }
+            return
+        }
+        #endif
         // Remote providers: require API key
         guard let apiKey = KeychainStore.shared.get(provider.keychainKey), !apiKey.isEmpty else {
             providerModelFetchError[provider] = "No API key — add it in Settings."
@@ -217,7 +236,7 @@ final class AppState: ObservableObject {
             case .deepseek:  models = await ClaudeService.fetchOpenAICompatibleModels(baseURL: "https://api.deepseek.com/v1", apiKey: apiKey)
             case .qwen:      models = await ClaudeService.fetchOpenAICompatibleModels(baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1", apiKey: apiKey)
             case .moonshot:  models = await ClaudeService.fetchOpenAICompatibleModels(baseURL: "https://api.moonshot.cn/v1", apiKey: apiKey)
-            case .ollama, .lmstudio: models = []  // handled above
+            case .ollama, .lmstudio, .claudeCode: models = []  // handled above
             }
             loadingProviderModels.remove(provider)
             if models.isEmpty {
@@ -249,7 +268,7 @@ final class AppState: ObservableObject {
                     if !models.contains(where: { $0.id == moonshotChatModel }) {
                         moonshotChatModel = models.first!.id
                     }
-                case .ollama, .lmstudio: break
+                case .ollama, .lmstudio, .claudeCode: break
                 }
             }
         }
@@ -266,6 +285,7 @@ final class AppState: ObservableObject {
         case .deepseek:  return deepseekChatModel
         case .qwen:      return qwenChatModel
         case .moonshot:  return moonshotChatModel
+        case .claudeCode: return claudeCodeModel
         }
     }
 
@@ -534,6 +554,21 @@ final class AppState: ObservableObject {
         if let v = ud.string(forKey: "deepseekChatModel"), !v.isEmpty { deepseekChatModel = v }
         if let v = ud.string(forKey: "qwenChatModel"),     !v.isEmpty { qwenChatModel     = v }
         if let v = ud.string(forKey: "moonshotChatModel"), !v.isEmpty { moonshotChatModel = v }
+        #if !APPSTORE
+        // Only an alias the CLI knows goes to `--model`.
+        if let v = ud.string(forKey: "claudeCodeChatModel"), ClaudeCodeChat.models.contains(where: { $0.id == v }) {
+            claudeCodeModel = v
+        }
+        #endif
+        if let v = ud.string(forKey: "brainVaultPath"), !v.isEmpty { brainVaultPath = v }
+        #if !APPSTORE
+        // No provider chosen yet and no Anthropic key: use the Claude login when the CLI is there.
+        if ud.string(forKey: "chatProvider") == nil,
+           (KeychainStore.shared.get("anthropic-api-key") ?? "").isEmpty,
+           ClaudeCodeLocator.executable() != nil {
+            chatProvider = .claudeCode
+        }
+        #endif
         if let v = ud.string(forKey: "ollamaServerURL"), !v.isEmpty { ollamaServerURL = v }
         if let v = ud.string(forKey: "lmstudioServerURL"), !v.isEmpty { lmstudioServerURL = v }
         // Migrate old 60s default → 15s

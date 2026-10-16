@@ -10,6 +10,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         #if !APPSTORE
         NoteTaker.shared.shutdown()
+        ClaudeCodeChat.shared.shutdown()
+        ClaudeCodeUtility.shared.stopAll()
         #endif
         DemoEngine.shared.stop()
         HotKeyCenter.shared.unregisterAll()

@@ -337,6 +337,11 @@ struct ApprovalView: View {
 
     /// The pill, named after the session that asks (several sessions can share a pill).
     private var asker: AgentTask? {
+        if approval?.pillId == HookServer.brainPillId {
+            // Mochi's own brain chat: no pill behind it.
+            return AgentTask(id: HookServer.brainPillId, name: "Mochi · \(approval?.projectName ?? "brain")",
+                             color: ChatProvider.claudeCode.accentHex, state: .approval, steps: [], source: .claudeCode)
+        }
         guard var task = state.focusTask else { return nil }
         if let project = approval?.projectName, !project.isEmpty { task.name = project }
         return task
@@ -368,9 +373,12 @@ struct ApprovalView: View {
                         HookServer.shared.sendApprovalDecision("allow", for: shownId)
                     }
                     // Codex, Copilot CLI and Muse Code do not support updatedPermissions
+                    // Nor the brain chat: "Always" would write a lasting allow rule into the
+                    // brain's settings for a request a note or a web page may have triggered.
                     let hideAlways = approval?.pillId == "agent_codex"
                         || approval?.pillId == "agent_copilot"
                         || approval?.pillId == "agent_muse"
+                        || approval?.pillId == HookServer.brainPillId
                     if !hideAlways {
                         SecondaryButton("Always") {
                             HookServer.shared.sendApprovalDecision("always", for: shownId)
@@ -1460,6 +1468,10 @@ struct PromptView: View {
         #endif
         let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
+        #if !APPSTORE
+        // One Claude Code turn at a time: keep the text until the answer is in.
+        if state.chatProvider == .claudeCode, ClaudeCodeChat.shared.isBusy { return }
+        #endif
         text = ""
         focused = false
         state.chatHistory.append(ChatMessage(role: .user, content: query))
@@ -1506,12 +1518,22 @@ struct ModelPickerView: View {
     @ObservedObject var state: AppState
     @Binding var isPresented: Bool
 
+    /// The `claude` CLI is on this Mac (the GitHub build only: no subprocess in the sandbox).
+    static var claudeCodeInstalled: Bool {
+        #if !APPSTORE
+        ClaudeCodeChat.shared.isAvailable
+        #else
+        false
+        #endif
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Provider chips — wrap; hide local providers when not connected and not already active
             let visibleProviders = ChatProvider.allCases.filter { p in
                 if p == .ollama   { return !AppState.shared.ollamaServerURL.isEmpty   || state.chatProvider == .ollama }
                 if p == .lmstudio { return !AppState.shared.lmstudioServerURL.isEmpty || state.chatProvider == .lmstudio }
+                if p == .claudeCode { return Self.claudeCodeInstalled || state.chatProvider == .claudeCode }
                 return true
             }
             ChipFlowLayout(spacing: 6) {
@@ -1602,6 +1624,7 @@ struct ModelPickerView: View {
                             case .deepseek:  state.deepseekChatModel = model.id
                             case .qwen:      state.qwenChatModel = model.id
                             case .moonshot:  state.moonshotChatModel = model.id
+                            case .claudeCode: state.claudeCodeModel = model.id
                             }
                             isPresented = false
                             SoundEngine.shared.play("blip")
@@ -1887,6 +1910,7 @@ struct IntegrationCardView: View {
         case "ai_openai":     return KeychainStore.shared.get("openai-api-key")    != nil
         case "ai_ollama":     return !AppState.shared.ollamaServerURL.isEmpty
         case "ai_lmstudio":   return !AppState.shared.lmstudioServerURL.isEmpty
+        case "ai_claudecode": return ModelPickerView.claudeCodeInstalled
         case "integration_resend":  return KeychainStore.shared.get("resend-api-key") != nil
         case "integration_n8n":     return KeychainStore.shared.get("n8n-api-key")    != nil
         case "integration_vercel":  return KeychainStore.shared.get("vercel-token")   != nil
@@ -2052,6 +2076,9 @@ struct IntegrationCardView: View {
                     let model = provider == .ollama ? appState.ollamaChatModel : appState.lmstudioChatModel
                     return String(localized: "Connected · \(model)")
                 }
+                if provider == .claudeCode {
+                    return String(localized: "Your Claude login · \(appState.claudeCodeModel)")
+                }
                 let model: String
                 switch task.id {
                 case "ai_anthropic": model = appState.claudeModel
@@ -2066,6 +2093,7 @@ struct IntegrationCardView: View {
             if isHooks { return String(localized: "Hooks not installed") }
             if isAI {
                 let provider = ChatProvider(pillID: task.id)!
+                if provider == .claudeCode { return String(localized: "Claude Code not found") }
                 return provider.isLocal ? String(localized: "Not connected") : String(localized: "Key not configured")
             }
             return String(localized: "Key not configured")

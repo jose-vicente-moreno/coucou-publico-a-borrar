@@ -213,6 +213,9 @@ final class ClaudeService {
 
     func clearConversation() {
         conversationMessages = []
+        #if !APPSTORE
+        ClaudeCodeChat.shared.reset()
+        #endif
     }
 
     /// Resolved once: NSFullUserName() is a system call, and the name cannot change under us
@@ -246,6 +249,14 @@ final class ClaudeService {
             state.stateOverride = .thinking
             await DemoEngine.shared.streamChatResponse(for: query)
             state.stateOverride = nil
+            return
+        }
+        if state.chatProvider == .claudeCode {
+            #if !APPSTORE
+            await ClaudeCodeChat.shared.chat(query: query, context: context, state: state)
+            #else
+            await showError("Claude Code isn't available in this version.", state: state)
+            #endif
             return
         }
         guard state.chatProvider == .anthropic else {
@@ -313,7 +324,7 @@ final class ClaudeService {
             case .deepseek:  baseURL = "https://api.deepseek.com/v1"
             case .qwen:      baseURL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
             case .moonshot:  baseURL = "https://api.moonshot.cn/v1"
-            case .anthropic, .ollama, .lmstudio: baseURL = ""
+            case .anthropic, .ollama, .lmstudio, .claudeCode: baseURL = ""
             }
         }
 
@@ -737,7 +748,7 @@ final class ClaudeService {
 
     // MARK: - File content block builder
 
-    private func readFileAsBlock(url: URL) -> [String: Any]? {
+    func readFileAsBlock(url: URL) -> [String: Any]? {
         guard let data = try? Data(contentsOf: url) else { return nil }
         let ext = url.pathExtension.lowercased()
         let base64 = data.base64EncodedString()

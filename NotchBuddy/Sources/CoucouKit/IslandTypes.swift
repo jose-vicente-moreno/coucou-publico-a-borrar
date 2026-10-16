@@ -101,6 +101,8 @@ enum ChatProvider: String, CaseIterable, Codable {
     case deepseek  = "deepseek"
     case qwen      = "qwen"
     case moonshot  = "moonshot"
+    /// The user's own `claude` CLI, signed in with their Claude account: no API key.
+    case claudeCode = "claudecode"
 
     var displayName: String {
         switch self {
@@ -112,6 +114,7 @@ enum ChatProvider: String, CaseIterable, Codable {
         case .deepseek:  "DeepSeek"
         case .qwen:      "Qwen"
         case .moonshot:  "Moonshot"
+        case .claudeCode: "Claude Code"
         }
     }
 
@@ -125,6 +128,7 @@ enum ChatProvider: String, CaseIterable, Codable {
         case .deepseek:  "#5B8FF9"
         case .qwen:      "#FF6A00"
         case .moonshot:  "#7C5CFC"
+        case .claudeCode: "#D97757"
         }
     }
 
@@ -138,6 +142,7 @@ enum ChatProvider: String, CaseIterable, Codable {
         case .deepseek:  "deepseek-chat"
         case .qwen:      "qwen-max"
         case .moonshot:  "moonshot-v1-32k"
+        case .claudeCode: "sonnet"
         }
     }
 
@@ -151,11 +156,17 @@ enum ChatProvider: String, CaseIterable, Codable {
         case .deepseek:  "deepseek-api-key"
         case .qwen:      "qwen-api-key"
         case .moonshot:  "moonshot-api-key"
+        case .claudeCode: ""
         }
     }
 
     var isLocal: Bool {
         self == .ollama || self == .lmstudio
+    }
+
+    /// Ollama and LM Studio need a server URL, Claude Code needs the CLI: none takes a key.
+    var needsAPIKey: Bool {
+        !isLocal && self != .claudeCode
     }
 
     var pillID: String {
@@ -168,6 +179,7 @@ enum ChatProvider: String, CaseIterable, Codable {
         case .deepseek:  "ai_deepseek"
         case .qwen:      "ai_qwen"
         case .moonshot:  "ai_moonshot"
+        case .claudeCode: "ai_claudecode"
         }
     }
 
@@ -181,6 +193,7 @@ enum ChatProvider: String, CaseIterable, Codable {
         case "ai_deepseek":  self = .deepseek
         case "ai_qwen":      self = .qwen
         case "ai_moonshot":  self = .moonshot
+        case "ai_claudecode": self = .claudeCode
         default:             return nil
         }
     }

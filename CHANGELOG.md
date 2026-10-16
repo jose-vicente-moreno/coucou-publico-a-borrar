@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased (fork: brain)
+
+- **Claude Code provider** — chat with your own Claude login, no API key: Coucou runs your `claude` CLI in a folder you pick (your "brain"), so its CLAUDE.md, skills and agents apply. Reading is free; commands, file changes and web fetches ask Allow / Deny in the notch. Settings → Chat → Claude Code (macOS, GitHub build). See [docs/BRAIN.md](docs/BRAIN.md)
+- **Flow and Notetaker on the same login** — Flow clean-up and Notetaker summaries use Claude Code when no Anthropic key is saved
+
 ## Windows and Linux 0.5.0 — October 15, 2026
 
 Windows and Linux catch up with the Mac's 0.3.0 and 0.4.0: the Coucou window, Flow dictation, the Notetaker and « OK Coucou ». All of it free and open source.

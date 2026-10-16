@@ -3,21 +3,33 @@ import Foundation
 
 /// The clean-up of Flow dictation: Claude removes the "euh", the repeats and the corrections said
 /// on the way ("at 3, no, at 4" → "at 4"), fixes the punctuation and writes in the app's style.
-/// Only when it is turned on in the Coucou Flow window and a Claude key is set in Settings; the words
-/// then go to Anthropic with that key, and nowhere else. Any problem (no network, slow answer, odd
-/// reply) and the words are pasted as they were heard.
+/// Only when it is turned on in the Coucou Flow window and Claude is reachable: with the Claude Code
+/// login (no key) or an Anthropic key set in Settings; the words then go to Anthropic, and nowhere
+/// else. Any problem (no network, slow answer, odd reply) and the words are pasted as they were heard.
 enum FlowCleanup {
     static let model = "claude-haiku-4-5"
     /// Past this, the words are pasted as heard rather than keeping you waiting.
     static let timeout: TimeInterval = 4
+    /// Claude Code's first request also starts the CLI (about 3 s); later ones take about 1 s.
+    static let claudeCodeTimeout: TimeInterval = 8
 
-    static var hasKey: Bool {
-        !(KeychainStore.shared.get("anthropic-api-key") ?? "").isEmpty
-    }
+    /// Clean-up can run: Claude Code login or Anthropic key.
+    static var hasKey: Bool { ClaudeAccess.isAvailable }
 
     static func clean(_ text: String, style: FlowStyle, app: String?, words: [String]) async -> String {
-        guard style != .verbatim, let key = KeychainStore.shared.get("anthropic-api-key"), !key.isEmpty,
-              FlowText.wordCount(text) >= 3 else { return text }
+        guard style != .verbatim, FlowText.wordCount(text) >= 3 else { return text }
+        if ClaudeAccess.usesClaudeCode {
+            do {
+                let reply = try await ClaudeCodeUtility.shared.complete(
+                    .flowCleanup, system: system(style: style, app: app, words: words),
+                    text: "<dictation>\n\(text)\n</dictation>", model: "haiku", timeout: claudeCodeTimeout)
+                return accept(reply, from: text)
+            } catch {
+                appendAppLog("nb.log", "[Flow] clean-up skipped (Claude Code): \(error.localizedDescription)")
+                return text
+            }
+        }
+        guard let key = KeychainStore.shared.get("anthropic-api-key"), !key.isEmpty else { return text }
         var request = URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!)
         request.httpMethod = "POST"
         request.timeoutInterval = timeout
@@ -38,15 +50,20 @@ enum FlowCleanup {
             guard (response as? HTTPURLResponse)?.statusCode == 200,
                   let json = try? JSONSerialization.jsonObject(with: reply) as? [String: Any],
                   let content = json["content"] as? [[String: Any]] else { return text }
-            let cleaned = content.compactMap { $0["text"] as? String }.joined()
-                .replacingOccurrences(of: "<dictation>", with: "")
-                .replacingOccurrences(of: "</dictation>", with: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            return plausible(cleaned, from: text) ? cleaned : text
+            return accept(content.compactMap { $0["text"] as? String }.joined(), from: text)
         } catch {
             appendAppLog("nb.log", "[Flow] clean-up skipped: \(error.localizedDescription)")
             return text
         }
+    }
+
+    /// The reply without the tags, or the words as heard when the reply is not a clean-up.
+    static func accept(_ reply: String, from text: String) -> String {
+        let cleaned = reply
+            .replacingOccurrences(of: "<dictation>", with: "")
+            .replacingOccurrences(of: "</dictation>", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return plausible(cleaned, from: text) ? cleaned : text
     }
 
     /// A reply that is empty, or much longer or shorter than what was said, is not a clean-up
