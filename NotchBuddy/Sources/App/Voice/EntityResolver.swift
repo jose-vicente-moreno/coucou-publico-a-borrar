@@ -62,9 +62,13 @@ enum EntityResolver {
         "calcom":               "integration_calcom",
         "cal":                  "integration_calcom",
         "spotify":              "integration_spotify",
+        // How Spanish speech recognition may write "Spotify"
+        "espotify":             "integration_spotify",
+        "espotifai":            "integration_spotify",
         "apple music":          "integration_music",
         "music":                "integration_music",
         "musique":              "integration_music",
+        "musica":               "integration_music",
     ]
 
     // MARK: - Public API

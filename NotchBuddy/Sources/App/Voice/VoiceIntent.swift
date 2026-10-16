@@ -70,7 +70,7 @@ struct PendingVoiceQuestion {
         case removeWhich(toAdd: String)   // 4-pill limit: which pill to remove to add X?
         case whichPill(add: Bool)         // "ajoute…" with no pill named: which one?
         case whichPlaylist                // "lance ma playlist": which playlist?
-        case switchLanguage(to: String)   // "You're speaking French. Want me to answer in French?"
+        case switchLanguage(to: VoiceLang) // "You're speaking French. Want me to answer in French?"
         case mailStep(MailField)          // guided email: who, subject, text, attachment
         case webQuery                     // "cherche sur internet" with nothing after: what?
     }

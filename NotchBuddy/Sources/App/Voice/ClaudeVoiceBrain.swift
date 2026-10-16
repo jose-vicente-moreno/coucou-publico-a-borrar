@@ -182,15 +182,14 @@ final class ClaudeVoiceBrain {
 
     /// The parts of the prompt that change: time, language, pills.
     private static func context() -> String {
-        let fr = VoiceSettings.language == "fr"
+        let lang = VoiceSettings.voiceLang
         let today = Date().formatted(.dateTime.weekday(.wide).day().month(.wide).year().hour().minute()
-            .locale(Locale(identifier: fr ? "fr_FR" : "en_US")))
+            .locale(lang.formatLocale))
         let state = AppState.shared
         let active = ([state.mainPillId] + Array(state.activeIntegrations))
             .compactMap { PillCatalog.definition(for: $0)?.name }
         let available = PillCatalog.available.map(\.name).joined(separator: ", ")
-        let language = fr ? "French" : "English"
-        return "It is \(today). Answer in \(language) (the user may speak French or English). "
+        return "It is \(today). Answer in \(lang.englishName) (the user may speak French, English or Spanish). "
             + "Pills in the notch (at most 4 besides the main one). Active: \(active.joined(separator: ", ")). "
             + "Available: \(available)."
     }

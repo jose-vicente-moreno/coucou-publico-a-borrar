@@ -5,7 +5,8 @@ import Foundation
 //
 // Tracks the last executed intent so relative follow-up commands can be resolved:
 //   • "et Vercel aussi", "pareil pour Stripe", "also X"  → same verb, new target
-//   • "remets-la", "annule ça", "undo"                   → inverse of last reversible action
+//     ("y Vercel también", "lo mismo para Stripe")
+//   • "remets-la", "annule ça", "undo", "deshazlo"       → inverse of last reversible action
 //
 // Pure value type — no AppKit, no AppState, no I/O.
 struct ConversationContext {
@@ -40,22 +41,33 @@ struct ConversationContext {
 
     // Patterns: "et X aussi", "aussi X", "et X", "X aussi", "ajoute aussi X",
     //           "pareil pour X", "idem pour X", "also X", "same for X",
+    //           "y X también", "también X", "y X", "X también", "añade también X",
+    //           "lo mismo para X", "igual con X",
     //           bare pill name (repeat last action on new pill)
     private func resolveSameTarget(norm: String, words: [String], pills: [PillDefinition]) -> VoiceIntent? {
         var entityWords: [String]? = nil
+        let and: Set<String> = ["et", "y"]
+        let too: Set<String> = ["aussi", "tambien"]
 
-        if words.first == "et", let aussiIdx = words.firstIndex(of: "aussi"), aussiIdx > 1 {
+        if let first = words.first, and.contains(first),
+           let aussiIdx = words.firstIndex(where: { too.contains($0) }), aussiIdx > 1 {
             entityWords = Array(words[1..<aussiIdx])
-        } else if words.first == "aussi", words.count > 1 {
+        } else if let first = words.first, too.contains(first), words.count > 1 {
             entityWords = Array(words[1...])
-        } else if words.first == "et", words.count > 1 {
+        } else if let first = words.first, and.contains(first), words.count > 1 {
             // "et Vercel" → same action for Vercel
             entityWords = Array(words[1...])
-        } else if words.last == "aussi", words.count > 1 {
+        } else if let last = words.last, too.contains(last), words.count > 1 {
             // "Vercel aussi" / "Stripe aussi"
             entityWords = Array(words.dropLast())
-        } else if words.first == "ajoute", words.count > 2, words[1] == "aussi" {
+        } else if let first = words.first, ["ajoute", "anade", "agrega"].contains(first),
+                  words.count > 2, too.contains(words[1]) {
             // "ajoute aussi Stripe"
+            entityWords = Array(words[2...])
+        } else if words.count > 3, words[0] == "lo", words[1] == "mismo", ["para", "con"].contains(words[2]) {
+            // "lo mismo para Stripe"
+            entityWords = Array(words[3...])
+        } else if words.first == "igual", words.count > 2, ["para", "con"].contains(words[1]) {
             entityWords = Array(words[2...])
         } else if words.first == "pareil", words.count > 2,
                   (words[1] == "pour" || words[1] == "avec" || words[1] == "de") {
@@ -102,11 +114,13 @@ struct ConversationContext {
     // MARK: - Reverse / undo
 
     // Triggers: "remets la", "remets le", "annule ca", "undo", "defait",
-    //           "cancel that", "undo this"
-    // Note: bare "annule" removed — it is a conversation-end phrase (TurnEndPolicy).
+    //           "cancel that", "undo this", "deshazlo", "vuelve a ponerla", "anula eso"
+    // Note: bare "annule" / "cancela" removed — they are conversation-end phrases (TurnEndPolicy).
     private func resolveReverse(norm: String) -> VoiceIntent? {
         let triggers = ["remets la", "remets le", "annule ca", "undo", "defait",
-                        "cancel that", "undo this"]
+                        "cancel that", "undo this",
+                        "deshaz", "deshazlo", "deshacer", "anula eso", "cancela eso",
+                        "vuelve a ponerla", "vuelve a ponerlo", "ponla otra vez", "ponlo otra vez"]
         let isReverse = triggers.contains { norm == $0 || norm.hasPrefix($0 + " ") }
         guard isReverse, let last = lastIntent else { return nil }
         return inverse(of: last)

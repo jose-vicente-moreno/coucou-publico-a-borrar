@@ -35,14 +35,18 @@ enum VoiceSettings {
         set { UserDefaults.standard.set(newValue, forKey: captionEnabledKey) }
     }
 
-    /// Language Coucou ANSWERS in: "en" (default) or "fr".
+    /// Language Coucou ANSWERS in: "en" (default), "fr" or "es".
     static var language: String {
         get { UserDefaults.standard.string(forKey: "voiceLanguage") ?? "en" }
         set { UserDefaults.standard.set(newValue, forKey: "voiceLanguage") }
     }
-    static var answerLocale: Locale { Locale(identifier: language == "fr" ? "fr-FR" : "en-US") }
+    static var voiceLang: VoiceLang {
+        get { VoiceLang(code: language) }
+        set { language = newValue.rawValue }
+    }
+    static var answerLocale: Locale { voiceLang.locale }
 
-    /// Language Coucou LISTENS to: "auto" (the Mac's dictation language, default), "en" or "fr".
+    /// Language Coucou LISTENS to: "auto" (the Mac's dictation language, default), "en", "fr" or "es".
     /// Independent from the answer language: speak French, hear English.
     static var listenLanguage: String {
         get { UserDefaults.standard.string(forKey: "voiceListenLanguage") ?? "auto" }

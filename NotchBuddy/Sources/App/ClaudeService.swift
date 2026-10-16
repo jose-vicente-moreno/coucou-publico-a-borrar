@@ -577,24 +577,31 @@ final class ClaudeService {
     /// A short answer Coucou can say aloud, with web search, in the answer language.
     /// `history` holds the previous exchanges of this voice conversation (memory only).
     /// nil on any failure: no key, network, quota.
-    func voiceAnswer(_ question: String, history: [VoiceWebTurn], french: Bool) async -> String? {
+    func voiceAnswer(_ question: String, history: [VoiceWebTurn], lang: VoiceLang) async -> String? {
         let today = Date().formatted(.dateTime.weekday(.wide).day().month(.wide).year()
-            .locale(Locale(identifier: french ? "fr_FR" : "en_US")))
-        let system = french
-            ? """
-              Tu es Coucou, un assistant vocal dans le notch du Mac. Nous sommes le \(today). \
-              Ta réponse est lue à voix haute : 2 à 4 phrases courtes, en français, sans markdown, sans liste, \
-              sans lien, sans citer tes sources. Cherche sur le web dès que la réponse peut avoir changé \
-              (actualité, résultats, prix, horaires, météo, personnes). Donne directement les faits utiles. \
-              S'il y a clairement plus à raconter, termine par une seule courte question pour proposer la suite.
-              """
-            : """
-              You are Coucou, a voice assistant in the Mac's notch. Today is \(today). \
-              Your answer is read aloud: 2 to 4 short sentences in English, no markdown, no lists, no links, \
-              never cite sources. Search the web whenever the answer may have changed (news, scores, prices, \
-              opening hours, weather, people). Give the useful facts straight away. \
-              When there is clearly more worth telling, end with one short question offering to go on.
-              """
+            .locale(lang.formatLocale))
+        let system = lang.t(
+            """
+            Tu es Coucou, un assistant vocal dans le notch du Mac. Nous sommes le \(today). \
+            Ta réponse est lue à voix haute : 2 à 4 phrases courtes, en français, sans markdown, sans liste, \
+            sans lien, sans citer tes sources. Cherche sur le web dès que la réponse peut avoir changé \
+            (actualité, résultats, prix, horaires, météo, personnes). Donne directement les faits utiles. \
+            S'il y a clairement plus à raconter, termine par une seule courte question pour proposer la suite.
+            """,
+            """
+            You are Coucou, a voice assistant in the Mac's notch. Today is \(today). \
+            Your answer is read aloud: 2 to 4 short sentences in English, no markdown, no lists, no links, \
+            never cite sources. Search the web whenever the answer may have changed (news, scores, prices, \
+            opening hours, weather, people). Give the useful facts straight away. \
+            When there is clearly more worth telling, end with one short question offering to go on.
+            """,
+            """
+            Eres Coucou, un asistente de voz en el notch del Mac. Hoy es \(today). \
+            Tu respuesta se lee en voz alta: de 2 a 4 frases cortas, en español, sin markdown, sin listas, \
+            sin enlaces, sin citar fuentes. Busca en la web siempre que la respuesta pueda haber cambiado \
+            (actualidad, resultados, precios, horarios, el tiempo, personas). Da directamente los datos útiles. \
+            Si claramente hay más que contar, termina con una sola pregunta corta para ofrecer seguir.
+            """)
         if ClaudeAccess.usesClaudeCode {
             // The Claude Code login: a one-off run with web search; the history goes in the text.
             let earlier = history.map { "Q: \($0.question)\nA: \($0.answer)" }.joined(separator: "\n\n")

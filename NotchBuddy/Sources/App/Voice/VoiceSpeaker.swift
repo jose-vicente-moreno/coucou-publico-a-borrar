@@ -54,7 +54,7 @@ final class VoiceSpeaker: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDe
         if VoiceStudioTTS.isActive {
             audio = Task { await VoiceStudioTTS.shared.audio(for: text, locale: locale) }
         } else if ElevenLabsTTS.isActive {
-            audio = Task { await ElevenLabsTTS.shared.audio(for: text) }
+            audio = Task { await ElevenLabsTTS.shared.audio(for: text, locale: locale) }
         } else {
             audio = nil
         }

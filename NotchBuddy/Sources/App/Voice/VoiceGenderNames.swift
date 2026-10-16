@@ -16,6 +16,8 @@ enum VoiceGenderNames {
         // French
         "amelie", "audrey", "aurelie", "marie", "virginie", "chantal", "juliette", "julie", "celine",
         "charlotte", "louise",
+        // Spanish
+        "monica", "paulina", "marisol", "angelica", "soledad", "francisca", "isabela",
     ]
     static let male: Set<String> = [
         // English
@@ -24,6 +26,8 @@ enum VoiceGenderNames {
         "bruce", "grandpa", "james", "noah",
         // French
         "thomas", "nicolas", "jacques", "henri", "felix", "antoine", "sebastien",
+        // Spanish
+        "jorge", "juan", "diego", "carlos",
     ]
 
     /// "female", "male", or nil when nothing tells.

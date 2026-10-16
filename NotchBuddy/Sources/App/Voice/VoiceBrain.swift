@@ -110,9 +110,10 @@ final class VoiceBrain {
 
     /// Instructions in the language Coucou speaks (Settings → Voice, English by default).
     static func instructions() -> String {
-        if VoiceSettings.language == "fr" {
+        switch VoiceSettings.voiceLang {
+        case .fr:
             return """
-            Tu es Coucou, un assistant dans le notch du MacBook. L'utilisateur peut parler anglais ou français : réponds toujours en français.
+            Tu es Coucou, un assistant dans le notch du MacBook. L'utilisateur peut parler anglais, français ou espagnol : réponds toujours en français.
             Réponds avec 1 à 2 phrases maximum. Sois direct et concis.
             Ne pose une question que si tu as vraiment besoin d'une précision pour agir : une seule, courte, qui finit par « ? ». Sinon, ne finis jamais par une question.
             Utilise les outils pour les pilules et la musique.
@@ -120,16 +121,27 @@ final class VoiceBrain {
             Pour un mail, appelle l'outil mail : Coucou demande ce qui manque, puis ouvre le mail dans le notch et c'est l'utilisateur qui clique sur Envoyer. Si on te demande de l'écrire, rédige toi-même le texte.
             Pour les noms de pilules, utilise le nom exact fourni par l'utilisateur.
             """
+        case .es:
+            return """
+            Eres Coucou, un asistente en el notch del MacBook. El usuario puede hablar en español, francés o inglés: responde siempre en español.
+            Responde con 1 o 2 frases como máximo. Sé directo y conciso.
+            Haz una pregunta solo si de verdad necesitas un detalle para actuar: una sola, corta, que termine en «?». Si no, nunca termines con una pregunta.
+            Usa las herramientas para las píldoras y la música.
+            Para cualquier pregunta sobre Stripe, GitHub, Vercel, Resend, n8n, Notion, Cal.com, los agentes (Claude Code, Codex…), el plan de Claude o Codex, la música o el tiempo, llama primero a la herramienta service y responde con sus datos, sin inventar nada.
+            Para un correo, llama a la herramienta mail: Coucou pide lo que falta, luego abre el correo en el notch y es el usuario quien hace clic en Enviar. Si te piden que lo escribas, redacta tú el texto.
+            Para los nombres de las píldoras, usa el nombre exacto que dijo el usuario.
+            """
+        case .en:
+            return """
+            You are Coucou, an assistant living in the MacBook notch. The user may speak French, English or Spanish: always answer in English.
+            Answer in one or two short sentences. Be direct.
+            Only ask a question when you truly need a detail to act: one short question ending with "?". Otherwise never end with a question.
+            Use the tools for pills and music.
+            For any question about Stripe, GitHub, Vercel, Resend, n8n, Notion, Cal.com, agents (Claude Code, Codex…), the Claude or Codex plan, music or the weather, call the service tool first and answer from its data, never invent.
+            For an email, call the mail tool: Coucou asks for what is missing, then opens the email in the notch and the user clicks Send. When asked to write it, write the text yourself.
+            For pill names, use the exact name the user said.
+            """
         }
-        return """
-        You are Coucou, an assistant living in the MacBook notch. The user may speak French or English: always answer in English.
-        Answer in one or two short sentences. Be direct.
-        Only ask a question when you truly need a detail to act: one short question ending with "?". Otherwise never end with a question.
-        Use the tools for pills and music.
-        For any question about Stripe, GitHub, Vercel, Resend, n8n, Notion, Cal.com, agents (Claude Code, Codex…), the Claude or Codex plan, music or the weather, call the service tool first and answer from its data, never invent.
-        For an email, call the mail tool: Coucou asks for what is missing, then opens the email in the notch and the user clicks Send. When asked to write it, write the text yourself.
-        For pill names, use the exact name the user said.
-        """
     }
 
     /// A short email body written by the on-device model from an instruction
@@ -139,15 +151,17 @@ final class VoiceBrain {
         if #available(macOS 26, *) {
             guard SystemLanguageModel.default.availability == .available else { return nil }
             // The mail is written in the language I used for it, whatever Coucou speaks.
-            let fr = VoiceQuery.looksFrench(instruction)
+            let lang = VoiceQuery.textLanguage(instruction)
             // An address is not a name to greet: a plain greeting then.
             let name = recipient.contains("@") ? "" : recipient
-            let session = LanguageModelSession(instructions: fr
-                ? "Tu écris des mails courts et naturels à la place de l'utilisateur : une salutation, 1 à 3 phrases qui disent ce qu'il veut dire, sans rien inventer, sans objet ni signature. Réponds uniquement avec le texte du mail."
-                : "You write short, natural emails for the user: a greeting, 1 to 3 sentences saying what they want to say, inventing nothing, no subject line or signature. Reply with the email text only.")
-            let to = name.isEmpty ? "" : (fr ? " à \(name)" : " to \(name)")
-            let prompt = fr ? "Mail\(to). Ce que je veux dire : \(instruction)"
-                            : "Email\(to). What I want to say: \(instruction)"
+            let session = LanguageModelSession(instructions: lang.t(
+                "Tu écris des mails courts et naturels à la place de l'utilisateur : une salutation, 1 à 3 phrases qui disent ce qu'il veut dire, sans rien inventer, sans objet ni signature. Réponds uniquement avec le texte du mail.",
+                "You write short, natural emails for the user: a greeting, 1 to 3 sentences saying what they want to say, inventing nothing, no subject line or signature. Reply with the email text only.",
+                "Escribes correos cortos y naturales en nombre del usuario: un saludo y de 1 a 3 frases que digan lo que quiere decir, sin inventar nada, sin asunto ni firma. Responde solo con el texto del correo."))
+            let to = name.isEmpty ? "" : lang.t(" à \(name)", " to \(name)", " a \(name)")
+            let prompt = lang.t("Mail\(to). Ce que je veux dire : \(instruction)",
+                                "Email\(to). What I want to say: \(instruction)",
+                                "Correo\(to). Lo que quiero decir: \(instruction)")
             // Boxed like the conversation session: the timeout closure must be Sendable.
             let box = SessionContainer(session: session, collector: IntentCollector())
             do {
@@ -454,7 +468,7 @@ struct ServiceTool: Tool, @unchecked Sendable {
         guard let topic = VoiceTopic(rawValue: arguments.topic) else {
             return "unknown topic: \(arguments.topic)"
         }
-        return await LiveVoiceInfo.shared.answer(topic, locale: Locale(identifier: VoiceSettings.language == "fr" ? "fr-FR" : "en-US"))
+        return await LiveVoiceInfo.shared.answer(topic, locale: VoiceSettings.answerLocale)
     }
 }
 
