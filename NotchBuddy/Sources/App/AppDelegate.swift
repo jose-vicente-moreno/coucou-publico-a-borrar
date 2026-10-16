@@ -293,6 +293,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         _ = MusicController.shared
         _ = SpotifyController.shared
         MailController.shared.start()
+        BrainController.shared.start()
         #endif
         CryptoController.shared.start()
         PortfolioController.shared.start()

@@ -46,6 +46,11 @@ final class ClaudeCodeChat: ObservableObject {
     instructions run at the beginning of a session: just answer the request.
     """
 
+    static func prompt(extra: String?) -> String {
+        guard let extra, !extra.isEmpty else { return brainPrompt }
+        return brainPrompt + "\n\n" + extra
+    }
+
     @Published private(set) var executable: URL? = ClaudeCodeLocator.executable()
     @Published private(set) var auth: ClaudeCodeLocator.AuthStatus?
     @Published private(set) var checkingAuth = false
@@ -155,7 +160,9 @@ final class ClaudeCodeChat: ObservableObject {
         let profile = ClaudeCodeProfile(
             model: AppState.shared.claudeCodeModel,
             workingDirectory: workingDirectory,
-            systemPrompt: .append(Self.brainPrompt),
+            // The brain's own instructions for Mochi (`.coucou/brain.json` → "prompt").
+            systemPrompt: .append(Self.prompt(extra: BrainConfig.promptAddition(
+                vault: BrainVault.url(path: AppState.shared.brainVaultPath)))),
             allowedTools: Self.readOnlyTools,
             disallowedTools: ["AskUserQuestion"],
             settingSources: Self.settingSources,

@@ -52,6 +52,28 @@ Code when it is installed and either no key is saved or the chat uses it.
 - Print mode skips the folder-trust prompt: the brain folder's project hooks run. Only
   pick a folder you trust.
 
+## The brain's own settings: `.coucou/brain.json`
+
+Coucou knows nothing about how a given vault is organised. A brain can describe itself
+in an optional `<brain folder>/.coucou/brain.json` (example:
+[brain.example.json](brain.example.json)). It lives with the vault, so one person's
+folders, commands and services never end up in Coucou. Every key is optional:
+
+- `prompt`: instructions appended to Mochi's brain prompt (which search commands or
+  agents to use, what to leave alone).
+- `inbox`: where « Save to brain » writes. `folder` and `attachments` (both inside the
+  vault), `ignore` (file names that are not notes) and `noteHeader` (lines under the
+  note's title, with `{date}`, `{source}` and `{title}`).
+- `counters`: up to 3 rows on the Brain card. Each has a `label`, a `kind`
+  (`notesWithoutFrontmatter` or `files`), `paths` (relative to the vault, `~/…` or
+  absolute), a `pattern` (default `*.md`) and an optional `action` that either `send`s a
+  message to the brain chat or opens it with a `draft` typed in.
+- `services`: up to 2 local services, each with a status dot from `health` (loopback
+  addresses only) and a button for `open` (http/https).
+
+Without the file, the card offers Ask and Obsidian, and « Save to brain » writes to
+`Inbox/` (attachments in `Inbox/attachments/`). The file is read again at every refresh.
+
 ## Measured (Apple Silicon Mac)
 
 - Chat, warm process: about 1 s per short turn; first turn of a conversation 2.5–3.5 s.
@@ -61,4 +83,7 @@ Code when it is installed and either no key is saved or the chat uses it.
 
 ```sh
 bash scripts/test-claude-code.sh   # parser, arguments, process session (fake CLI)
+bash scripts/test-brain-config.sh  # .coucou/brain.json parsing
+bash scripts/test-brain-status.sh  # Brain card counters
+bash scripts/test-brain-inbox.sh   # « Save to brain »
 ```

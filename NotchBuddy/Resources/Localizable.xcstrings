@@ -129,18 +129,18 @@
         }
       }
     },
-    "Runs your own `claude` command in the brain folder, so its CLAUDE.md, skills and agents apply. No API key: Claude Code uses the account you signed in with. Reading is free; writing files or running commands asks you in the notch." : {
+    "Runs your own `claude` command in the brain folder, so its CLAUDE.md, skills and agents apply. No API key: Claude Code uses the account you signed in with. Reading is free; writing files or running commands asks you in the notch. Add the Brain pill (Active pills) to see the brain's queues in the notch." : {
       "localizations" : {
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ejecuta tu propio comando `claude` en la carpeta del brain, así que se aplican su CLAUDE.md, sus skills y sus agentes. Sin clave API: Claude Code usa la cuenta con la que iniciaste sesión. Leer es libre; escribir archivos o ejecutar comandos te pide permiso en el notch."
+            "value" : "Ejecuta tu propio comando `claude` en la carpeta del brain, así que se aplican su CLAUDE.md, sus skills y sus agentes. Sin clave API: Claude Code usa la cuenta con la que iniciaste sesión. Leer es libre; escribir archivos o ejecutar comandos te pide permiso en el notch. Añade la pestaña Brain (Pestañas activas) para ver en el notch las colas del brain."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lance ta propre commande `claude` dans le dossier du brain : son CLAUDE.md, ses skills et ses agents s'appliquent. Pas de clé API : Claude Code utilise le compte avec lequel tu t'es connecté. Lire est libre ; écrire des fichiers ou lancer des commandes te demande l'accord dans le notch."
+            "value" : "Lance ta propre commande `claude` dans le dossier du brain : son CLAUDE.md, ses skills et ses agents s'appliquent. Pas de clé API : Claude Code utilise le compte avec lequel tu t'es connecté. Lire est libre ; écrire des fichiers ou lancer des commandes te demande l'accord dans le notch. Ajoute l'onglet Brain (Onglets actifs) pour voir les files du brain dans le notch."
           }
         }
       }
@@ -301,6 +301,182 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Non autorisé"
+          }
+        }
+      }
+    },
+    "Save to brain" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardar en el brain"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ranger dans le brain"
+          }
+        }
+      }
+    },
+    "Saved to brain inbox" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardado en el inbox del brain"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rangé dans l'inbox du brain"
+          }
+        }
+      }
+    },
+    "Saving to brain…" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardando en el brain…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rangement dans le brain…"
+          }
+        }
+      }
+    },
+    "Couldn't save to brain: %@" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo guardar en el brain: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de ranger dans le brain : %@"
+          }
+        }
+      }
+    },
+    "Choose your brain folder in Settings → Chat first." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Primero elige la carpeta del brain en Configuración → Chat."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisis d'abord le dossier du brain dans Réglages → Chat."
+          }
+        }
+      }
+    },
+    "No brain folder yet" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aún no hay carpeta del brain"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas encore de dossier brain"
+          }
+        }
+      }
+    },
+    "Brain folder not found" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se encuentra la carpeta del brain"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dossier du brain introuvable"
+          }
+        }
+      }
+    },
+    "Choose it in Settings…" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elígela en Configuración…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisis-le dans Réglages…"
+          }
+        }
+      }
+    },
+    "Add .coucou/brain.json to show your queues here." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añade .coucou/brain.json para ver aquí tus colas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajoute .coucou/brain.json pour voir tes files ici."
+          }
+        }
+      }
+    },
+    "Ask" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preguntar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demander"
+          }
+        }
+      }
+    },
+    "Integration" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Integración"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intégration"
           }
         }
       }

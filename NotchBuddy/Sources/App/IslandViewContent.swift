@@ -233,6 +233,10 @@ struct OverviewView: View {
             }
         case "integration_portfolio":
             break   // no global URL; individual holdings open their exchange pages
+        case "integration_brain":
+            #if !APPSTORE
+            BrainActions.openObsidian()
+            #endif
         case "integration_vercel":
             NSWorkspace.shared.open(URL(string: "https://vercel.com/dashboard")!)
         case "integration_github":
@@ -1027,6 +1031,11 @@ struct ChooseView: View {
                 HStack(spacing: 8) {
                     PrimaryButton("Ask a question") { state.view = .prompt }
                     SecondaryButton("Send by email") { state.view = .mail }
+                    #if !APPSTORE
+                    if BrainController.shared.vaultURL != nil {
+                        SecondaryButton("Save to brain") { BrainActions.saveDroppedFile() }
+                    }
+                    #endif
                 }
             }
             .padding(.leading, 98)
@@ -1431,7 +1440,18 @@ struct PromptView: View {
             .padding(.bottom, 14)
         }
         .padding(.bottom, 10)
-        .onAppear { focused = true }
+        .onAppear {
+            focused = true
+            #if !APPSTORE
+            if let draft = BrainActions.takeDraft() { text = draft }
+            #endif
+        }
+        #if !APPSTORE
+        // The chat already on screen (a draft action from the Brain card while it is open).
+        .onReceive(NotificationCenter.default.publisher(for: .islandChatDraft)) { note in
+            if let draft = note.object as? String, BrainActions.takeDraft() != nil { text = draft }
+        }
+        #endif
         .onChange(of: state.view) { _, view in
             if view == .prompt {
                 state.fetchModelsIfNeeded(for: state.chatProvider)
@@ -1905,6 +1925,12 @@ struct IntegrationCardView: View {
             return true  // public market data: no key, nothing to set up
         case "integration_portfolio":
             return PortfolioSettings.hasAnyAccount
+        case "integration_brain":
+            #if !APPSTORE
+            return BrainController.shared.vaultURL != nil  // brain folder set and there
+            #else
+            return false
+            #endif
         case "ai_anthropic":  return KeychainStore.shared.get("anthropic-api-key") != nil
         case "ai_google":     return KeychainStore.shared.get("google-api-key")    != nil
         case "ai_openai":     return KeychainStore.shared.get("openai-api-key")    != nil
@@ -2165,6 +2191,12 @@ struct IntegrationCardView: View {
         } else if task.id == "integration_portfolio" {
             PortfolioCardView()
                 .transition(.opacity)
+        } else if task.id == "integration_brain" {
+            // Its own card in every state (no folder yet, counts).
+            #if !APPSTORE
+            BrainCardView()
+                .transition(.opacity)
+            #endif
         } else if mailHasData {
             #if !APPSTORE
             MailCardView()

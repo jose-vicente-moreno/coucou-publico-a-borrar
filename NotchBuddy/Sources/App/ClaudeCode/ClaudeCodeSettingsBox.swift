@@ -52,7 +52,7 @@ struct ClaudeCodeSettingsBox: View {
                     }
                 }
 
-                Text("Runs your own `claude` command in the brain folder, so its CLAUDE.md, skills and agents apply. No API key: Claude Code uses the account you signed in with. Reading is free; writing files or running commands asks you in the notch.")
+                Text("Runs your own `claude` command in the brain folder, so its CLAUDE.md, skills and agents apply. No API key: Claude Code uses the account you signed in with. Reading is free; writing files or running commands asks you in the notch. Add the Brain pill (Active pills) to see the brain's queues in the notch.")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
