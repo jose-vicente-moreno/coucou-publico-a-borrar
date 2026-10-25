@@ -124,6 +124,11 @@ jobs:
       - name: Test Claude host identification
         run: bash scripts/test-claude-host.sh
 
+      # The nb-hook scripts are Swift string literals, so Swift never checks them.
+      # Without this the app builds green while every hook dies on a SyntaxError.
+      - name: Test the embedded nb-hook scripts compile
+        run: bash scripts/test-hook-script.sh
+
       - name: Test shortcuts
         run: bash scripts/test-shortcuts.sh
 
