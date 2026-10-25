@@ -94,8 +94,23 @@ jobs:
       - name: Test chat parsing
         run: bash scripts/test-chat-parsing.sh
 
-      - name: Test Claude Code chat
-        run: bash scripts/test-claude-code-chat.sh
+      - name: Test Claude Code provider
+        run: bash scripts/test-claude-code.sh
+
+      - name: Test Coucou MCP relay
+        run: bash scripts/test-coucou-mcp.sh
+
+      - name: Test brain config
+        run: bash scripts/test-brain-config.sh
+
+      - name: Test brain inbox
+        run: bash scripts/test-brain-inbox.sh
+
+      - name: Test brain status
+        run: bash scripts/test-brain-status.sh
+
+      - name: Test VoiceStudio
+        run: bash scripts/test-voicestudio.sh
 
       - name: Test agent sessions
         run: bash scripts/test-agent-sessions.sh
