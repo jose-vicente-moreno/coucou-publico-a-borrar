@@ -1009,7 +1009,7 @@
    "es": "Cerrar",
    "ar": "إغلاق",
    "fr": "Fermer",
-   "bn": "বন্ধ",
+   "bn": "বন্ধ করুন",
    "pt-BR": "Fechar",
    "ru": "Закрыть",
    "id": "Tutup"
@@ -1213,12 +1213,12 @@
    "id": "Disalin · izinkan Aksesibilitas untuk menempel"
   },
   "Copy": {
-   "zh-Hans": "复制",
-   "hi": "कॉपी",
+   "zh-Hans": "拷贝",
+   "hi": "कॉपी करें",
    "es": "Copiar",
    "ar": "نسخ",
    "fr": "Copier",
-   "bn": "কপি",
+   "bn": "কপি করুন",
    "pt-BR": "Copiar",
    "ru": "Скопировать",
    "id": "Salin"
@@ -2875,11 +2875,11 @@
   },
   "Microphone unavailable": {
    "zh-Hans": "麦克风不可用",
-   "hi": "माइक्रोफ़ोन अनुपलब्ध",
+   "hi": "माइक्रोफ़ोन उपलब्ध नहीं",
    "es": "Micrófono no disponible",
    "ar": "الميكروفون غير متاح",
-   "fr": "Microphone indisponible",
-   "bn": "মাইক্রোফোন অনুপলব্ধ",
+   "fr": "Micro indisponible",
+   "bn": "মাইক্রোফোন পাওয়া যাচ্ছে না",
    "pt-BR": "Microfone indisponível",
    "ru": "Микрофон недоступен",
    "id": "Mikrofon tidak tersedia"
@@ -3705,7 +3705,7 @@
    "ar": "فتح Coucou",
    "fr": "Ouvrir Coucou",
    "bn": "Coucou খুলুন",
-   "pt-BR": "Abrir Coucou",
+   "pt-BR": "Abrir o Coucou",
    "ru": "Открыть Coucou",
    "id": "Buka Coucou"
   },
@@ -4635,12 +4635,12 @@
   },
   "Retry": {
    "zh-Hans": "重试",
-   "hi": "पुनः प्रयास",
+   "hi": "फिर कोशिश करें",
    "es": "Reintentar",
    "ar": "إعادة المحاولة",
    "fr": "Réessayer",
-   "bn": "পুনরায় চেষ্টা",
-   "pt-BR": "Tentar novamente",
+   "bn": "আবার চেষ্টা করুন",
+   "pt-BR": "Tentar de novo",
    "ru": "Повторить",
    "id": "Coba lagi"
   },
@@ -5966,12 +5966,12 @@
   },
   "Weekly recap": {
    "zh-Hans": "每周回顾",
-   "hi": "साप्ताहिक सारांश",
+   "hi": "साप्ताहिक रिकैप",
    "es": "Resumen semanal",
-   "ar": "ملخص أسبوعي",
+   "ar": "الملخص الأسبوعي",
    "fr": "Récap de la semaine",
-   "bn": "সাপ্তাহিক সারসংক্ষেপ",
-   "pt-BR": "Recapitulação semanal",
+   "bn": "সাপ্তাহিক রিক্যাপ",
+   "pt-BR": "Resumo semanal",
    "ru": "Итоги недели",
    "id": "Rekap mingguan"
   },

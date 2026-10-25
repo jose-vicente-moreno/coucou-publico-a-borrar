@@ -129,6 +129,9 @@ jobs:
       - name: Test the embedded nb-hook scripts compile
         run: bash scripts/test-hook-script.sh
 
+      - name: Test the text shown when an agent fails
+        run: bash scripts/test-stop-failure-text.sh
+
       - name: Test shortcuts
         run: bash scripts/test-shortcuts.sh
 
