@@ -115,6 +115,21 @@ jobs:
       - name: Test agent sessions
         run: bash scripts/test-agent-sessions.sh
 
+      - name: Test terminal focus (quiet when the terminal is in front)
+        run: bash scripts/test-terminal-focus.sh
+
+      # These three existed in the tree and no workflow ever ran them, so they
+      # were proving nothing. test-claude-host covers the terminal identification
+      # that the focus test above depends on.
+      - name: Test Claude host identification
+        run: bash scripts/test-claude-host.sh
+
+      - name: Test shortcuts
+        run: bash scripts/test-shortcuts.sh
+
+      - name: Test voice backoff
+        run: bash scripts/test-voice-backoff.sh
+
       - name: Test plan gauge
         run: bash scripts/test-plan-gauge.sh
 

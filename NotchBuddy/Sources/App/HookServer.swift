@@ -541,6 +541,13 @@ final class HookServer: @unchecked Sendable {
         }
 
         let focused = state.focusId == agentId
+        // The user is already looking at the session's terminal, so a finish or an error is
+        // in front of them: the pill takes a badge and stays quiet, with no sound and no
+        // reveal. Taken from upstream (Louis-CFM/coucou, "quiet when terminal in front")
+        // and widened to the sessions the routing fix above added. See `TerminalFocus.swift`.
+        let terminalInFront = sessionTerminalIsInFront(
+            hostApp: hostApp, bundleId: bundleId,
+            frontmost: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
         // Several sessions can share one pill (it is chosen from the client, not from the
         // session). The registry tells a turn-ending event whether it may touch the pill,
         // and which session owns the project name shown on it.
@@ -674,11 +681,11 @@ final class HookServer: @unchecked Sendable {
             if !finalText.isEmpty, let idx = state.tasks.firstIndex(where: { $0.id == agentId }) {
                 state.tasks[idx].finalLine = finalText
             }
-            SoundEngine.shared.play("finish")
+            if !terminalInFront { SoundEngine.shared.play("finish") }
             // The pill goes back to idle in 5.2 s, so the waiting list, not the
             // pill state, is what remembers that this session needs an answer.
             state.refreshWaitingSessions()
-            if focused {
+            if focused && !terminalInFront {
                 expandIfNeeded(to: .finished)
             } else {
                 setPillBadge(id: agentId, badge: .finished)
@@ -703,8 +710,8 @@ final class HookServer: @unchecked Sendable {
             if let idx = state.tasks.firstIndex(where: { $0.id == agentId }) {
                 state.tasks[idx].finalLine = Self.stopFailureDetail(payload)
             }
-            SoundEngine.shared.play("error")
-            if focused {
+            if !terminalInFront { SoundEngine.shared.play("error") }
+            if focused && !terminalInFront {
                 expandIfNeeded(to: .error)
             } else {
                 setPillBadge(id: agentId, badge: .error)
