@@ -160,16 +160,22 @@ jobs:
             -configuration Release \
             build \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO 2>&1 | tee build.log || {
-              # Compiler errors as annotations, readable without downloading the log.
-              grep -E "error:" build.log | sort -u | head -30 | sed 's/^/::error::/'
-              # A compiler killed for memory, or a crashed frontend, writes no
-              # "error:" line at all, so the tail is the only evidence left.
-              echo "::group::last 60 lines of build.log"
-              tail -60 build.log
-              echo "::endgroup::"
-              exit 1
-            }
+            CODE_SIGNING_REQUIRED=NO 2>&1 | tee build.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            # 65 is a build error; 137 or 139 means the compiler was killed or
+            # crashed, and then there is no "error:" line to find.
+            echo "::error::xcodebuild exited with $status"
+            grep -E "error:" build.log | sort -u | head -30 | sed 's/^/::error::/' || true
+            echo "::group::last 60 lines of build.log"
+            tail -60 build.log
+            echo "::endgroup::"
+            echo "::group::runner resources"
+            df -h / /Users || true
+            vm_stat | head -6 || true
+            echo "::endgroup::"
+            exit 1
+          fi
 
       - name: Build App Store target (unsigned)
         run: |
