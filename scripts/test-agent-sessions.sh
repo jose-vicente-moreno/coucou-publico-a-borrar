@@ -12,7 +12,7 @@ cp tests/fake_agent_cli.sh "$FAKE"
 chmod +x "$FAKE"
 
 swiftc -swift-version 6 -warnings-as-errors \
-    NotchBuddy/Sources/App/ClaudeCodeChat.swift \
+    NotchBuddy/Sources/App/ClaudeCode/ClaudeCodeLocator.swift \
     NotchBuddy/Sources/App/AgentSessionIndex.swift \
     NotchBuddy/Sources/App/AgentSessionRunner.swift \
     tests/AgentSessionTests.swift \

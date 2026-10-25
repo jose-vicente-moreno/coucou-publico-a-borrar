@@ -211,13 +211,12 @@ final class ClaudeService {
     // Multi-turn conversation messages (for API)
     private var conversationMessages: [[String: Any]] = []
 
-    /// The conversation the `claude` command is holding for us, resumed on the
-    /// next turn. Only used by the Claude Code provider.
-    private var claudeCodeSession: String?
 
     func clearConversation() {
         conversationMessages = []
-        claudeCodeSession = nil
+        #if !APPSTORE
+        ClaudeCodeChat.shared.reset()
+        #endif
     }
 
     /// Resolved once: NSFullUserName() is a system call, and the name cannot change under us
@@ -254,7 +253,11 @@ final class ClaudeService {
             return
         }
         if state.chatProvider == .claudeCode {
-            await chatViaClaudeCode(query: query, context: context, state: state)
+            #if !APPSTORE
+            await ClaudeCodeChat.shared.chat(query: query, context: context, state: state)
+            #else
+            await showError("Claude Code isn't available in this version.", state: state)
+            #endif
             return
         }
         guard state.chatProvider == .anthropic else {
@@ -304,102 +307,6 @@ final class ClaudeService {
         }
     }
 
-    // MARK: - Chat through the Claude Code CLI (no API key)
-
-    /// The same instructions, minus the promise of web search: this provider runs
-    /// with every tool turned off, so it cannot look anything up.
-    private var claudeCodeSystemPrompt: String {
-        systemPrompt.replacingOccurrences(
-            of: "You have web search access and can help with absolutely anything",
-            with: "You can help with absolutely anything"
-        )
-    }
-
-    /// One turn through the command. The command keeps the history itself, so only
-    /// the new message is sent and `--resume` carries the rest.
-    private func claudeCodeTurn(
-        userText: String, resume: String?, state: AppState, messageID: ChatMessage.ID
-    ) async throws -> (text: String, sessionId: String?) {
-        try await ClaudeCodeChat.streamChat(
-            prompt: userText,
-            systemPrompt: claudeCodeSystemPrompt,
-            model: state.claudeCodeChatModel,
-            resumeSessionId: resume
-        ) { [state, messageID] visible in
-            if !visible.isEmpty, state.stateOverride == .thinking {
-                state.stateOverride = nil   // hide typing dots on first visible text
-            }
-            if let idx = state.chatHistory.firstIndex(where: { $0.id == messageID }) {
-                state.chatHistory[idx].content = visible
-            }
-        }
-    }
-
-    func chatViaClaudeCode(query: String, context: PromptContext?, state: AppState) async {
-        // File and window context on the first message only, same as the other providers.
-        var userText = query
-        if conversationMessages.isEmpty, let context = context {
-            switch context {
-            case .window(let app, let title, let url):
-                var prefix = "Context — App: \(app), Window: \(title)"
-                if let url = url { prefix += ", URL: \(url)" }
-                userText = prefix + "\n\n" + query
-            case .file(let name, let fileURL):
-                // Tools are off, so the command cannot open the file itself: its text
-                // travels in the prompt, the way the local providers send it.
-                if let fileURL = fileURL,
-                   let text = try? String(contentsOf: fileURL, encoding: .utf8), !text.isEmpty {
-                    let truncated = text.count > 24_000
-                        ? String(text.prefix(24_000)) + "\n[truncated]"
-                        : text
-                    userText = "File: \(name)\n\n\(truncated)\n\n" + query
-                } else {
-                    userText = "File: \(name)\n\n" + query
-                }
-            }
-        }
-        conversationMessages.append(["role": "user", "content": userText])
-
-        // Placeholder (hidden until the first token by ChatBubble's empty-content guard)
-        let placeholder = ChatMessage(role: .assistant, content: "")
-        let messageID = placeholder.id
-        state.chatHistory.append(placeholder)
-        state.stateOverride = .thinking
-
-        do {
-            var outcome: (text: String, sessionId: String?)
-            do {
-                outcome = try await claudeCodeTurn(
-                    userText: userText, resume: claudeCodeSession, state: state, messageID: messageID
-                )
-            } catch let e as ClaudeCodeChatError
-                where claudeCodeSession != nil && e != .cliNotFound && e != .notSignedIn {
-                // The command no longer holds that conversation. Start a new one
-                // rather than lose the message the user just typed.
-                claudeCodeSession = nil
-                outcome = try await claudeCodeTurn(
-                    userText: userText, resume: nil, state: state, messageID: messageID
-                )
-            }
-
-            claudeCodeSession = outcome.sessionId
-            conversationMessages.append(["role": "assistant", "content": outcome.text])
-            if let idx = state.chatHistory.firstIndex(where: { $0.id == messageID }) {
-                state.chatHistory[idx].content = outcome.text
-            }
-            state.stateOverride = nil
-            state.view = .prompt
-            NotificationCenter.default.post(name: .triggerEmote, object: BotEmote.happy)
-        } catch {
-            conversationMessages.removeLast()
-            state.chatHistory.removeAll { $0.id == messageID }
-            state.stateOverride = nil
-            let message = (error as? ClaudeCodeChatError)?.localizedDescription
-                ?? error.localizedDescription
-            await showError(message, state: state)
-        }
-    }
-
     // MARK: - OpenAI-compatible chat (Google Gemini / OpenAI / Ollama / LM Studio)
 
     func chatOpenAICompatible(query: String, context: PromptContext?, state: AppState) async {
@@ -418,8 +325,7 @@ final class ClaudeService {
             case .deepseek:  baseURL = "https://api.deepseek.com/v1"
             case .qwen:      baseURL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
             case .moonshot:  baseURL = "https://api.moonshot.cn/v1"
-            // Neither of these is an HTTP endpoint; they never reach this path.
-            case .anthropic, .claudeCode, .ollama, .lmstudio: baseURL = ""
+            case .anthropic, .ollama, .lmstudio, .claudeCode: baseURL = ""
             }
         }
 
@@ -672,25 +578,42 @@ final class ClaudeService {
     /// A short answer Coucou can say aloud, with web search, in the answer language.
     /// `history` holds the previous exchanges of this voice conversation (memory only).
     /// nil on any failure: no key, network, quota.
-    func voiceAnswer(_ question: String, history: [VoiceWebTurn], french: Bool) async -> String? {
-        guard let key = apiKey, !key.isEmpty else { return nil }
+    func voiceAnswer(_ question: String, history: [VoiceWebTurn], lang: VoiceLang) async -> String? {
         let today = Date().formatted(.dateTime.weekday(.wide).day().month(.wide).year()
-            .locale(Locale(identifier: french ? "fr_FR" : "en_US")))
-        let system = french
-            ? """
-              Tu es Coucou, un assistant vocal dans le notch du Mac. Nous sommes le \(today). \
-              Ta réponse est lue à voix haute : 2 à 4 phrases courtes, en français, sans markdown, sans liste, \
-              sans lien, sans citer tes sources. Cherche sur le web dès que la réponse peut avoir changé \
-              (actualité, résultats, prix, horaires, météo, personnes). Donne directement les faits utiles. \
-              S'il y a clairement plus à raconter, termine par une seule courte question pour proposer la suite.
-              """
-            : """
-              You are Coucou, a voice assistant in the Mac's notch. Today is \(today). \
-              Your answer is read aloud: 2 to 4 short sentences in English, no markdown, no lists, no links, \
-              never cite sources. Search the web whenever the answer may have changed (news, scores, prices, \
-              opening hours, weather, people). Give the useful facts straight away. \
-              When there is clearly more worth telling, end with one short question offering to go on.
-              """
+            .locale(lang.formatLocale))
+        let system = lang.t(
+            """
+            Tu es Coucou, un assistant vocal dans le notch du Mac. Nous sommes le \(today). \
+            Ta réponse est lue à voix haute : 2 à 4 phrases courtes, en français, sans markdown, sans liste, \
+            sans lien, sans citer tes sources. Cherche sur le web dès que la réponse peut avoir changé \
+            (actualité, résultats, prix, horaires, météo, personnes). Donne directement les faits utiles. \
+            S'il y a clairement plus à raconter, termine par une seule courte question pour proposer la suite.
+            """,
+            """
+            You are Coucou, a voice assistant in the Mac's notch. Today is \(today). \
+            Your answer is read aloud: 2 to 4 short sentences in English, no markdown, no lists, no links, \
+            never cite sources. Search the web whenever the answer may have changed (news, scores, prices, \
+            opening hours, weather, people). Give the useful facts straight away. \
+            When there is clearly more worth telling, end with one short question offering to go on.
+            """,
+            """
+            Eres Coucou, un asistente de voz en el notch del Mac. Hoy es \(today). \
+            Tu respuesta se lee en voz alta: de 2 a 4 frases cortas, en español, sin markdown, sin listas, \
+            sin enlaces, sin citar fuentes. Busca en la web siempre que la respuesta pueda haber cambiado \
+            (actualidad, resultados, precios, horarios, el tiempo, personas). Da directamente los datos útiles. \
+            Si claramente hay más que contar, termina con una sola pregunta corta para ofrecer seguir.
+            """)
+        if ClaudeAccess.usesClaudeCode {
+            // The Claude Code login: a one-off run with web search; the history goes in the text.
+            let earlier = history.map { "Q: \($0.question)\nA: \($0.answer)" }.joined(separator: "\n\n")
+            let prompt = earlier.isEmpty ? question : "\(earlier)\n\nNow: \(question)"
+            guard let text = try? await ClaudeCodeUtility.shared.complete(
+                .voiceWeb, system: system, text: prompt, model: "haiku",
+                tools: ["WebSearch"], timeout: 45, fresh: true) else { return nil }
+            let spoken = VoiceQuery.spokenText(text)
+            return spoken.isEmpty ? nil : spoken
+        }
+        guard let key = apiKey, !key.isEmpty else { return nil }
         var messages: [[String: Any]] = []
         for turn in history {
             messages.append(["role": "user", "content": turn.question])
@@ -843,7 +766,7 @@ final class ClaudeService {
 
     // MARK: - File content block builder
 
-    private func readFileAsBlock(url: URL) -> [String: Any]? {
+    func readFileAsBlock(url: URL) -> [String: Any]? {
         guard let data = try? Data(contentsOf: url) else { return nil }
         let ext = url.pathExtension.lowercased()
         let base64 = data.base64EncodedString()

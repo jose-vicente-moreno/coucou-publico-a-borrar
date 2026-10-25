@@ -14,7 +14,6 @@ enum IslandView: String, CaseIterable {
     case searching, result, note, settings, greeting, wardrobe, recap
     case listening    // voice wake detected — "À l'écoute…" with live transcript
     case voiceResult  // voice command executed — "✓ Musique lancée" for ~2 s
-    case capture      // a screen capture just taken (⌃⌥X): paste, copy, annotate, ask Claude
 }
 
 // MARK: - Bot State
@@ -94,110 +93,107 @@ enum AgentSource: Equatable {
 // MARK: - Chat provider
 
 enum ChatProvider: String, CaseIterable, Codable {
-    case anthropic  = "anthropic"
-    case claudeCode = "claude-code"
-    case google     = "google"
-    case openai     = "openai"
-    case ollama     = "ollama"
-    case lmstudio   = "lmstudio"
-    case deepseek   = "deepseek"
-    case qwen       = "qwen"
-    case moonshot   = "moonshot"
+    case anthropic = "anthropic"
+    case google    = "google"
+    case openai    = "openai"
+    case ollama    = "ollama"
+    case lmstudio  = "lmstudio"
+    case deepseek  = "deepseek"
+    case qwen      = "qwen"
+    case moonshot  = "moonshot"
+    /// The user's own `claude` CLI, signed in with their Claude account: no API key.
+    case claudeCode = "claudecode"
 
     var displayName: String {
         switch self {
-        case .anthropic:  "Anthropic"
+        case .anthropic: "Anthropic"
+        case .google:    "Google"
+        case .openai:    "OpenAI"
+        case .ollama:    "Ollama"
+        case .lmstudio:  "LM Studio"
+        case .deepseek:  "DeepSeek"
+        case .qwen:      "Qwen"
+        case .moonshot:  "Moonshot"
         case .claudeCode: "Claude Code"
-        case .google:     "Google"
-        case .openai:     "OpenAI"
-        case .ollama:     "Ollama"
-        case .lmstudio:   "LM Studio"
-        case .deepseek:   "DeepSeek"
-        case .qwen:       "Qwen"
-        case .moonshot:   "Moonshot"
         }
     }
 
     var accentHex: String {
         switch self {
-        case .anthropic:  "#E07950"
+        case .anthropic: "#E07950"
+        case .google:    "#4285F4"
+        case .openai:    "#10A37F"
+        case .ollama:    "#FACC15"
+        case .lmstudio:  "#A3E635"
+        case .deepseek:  "#5B8FF9"
+        case .qwen:      "#FF6A00"
+        case .moonshot:  "#7C5CFC"
         case .claudeCode: "#D97757"
-        case .google:     "#4285F4"
-        case .openai:     "#10A37F"
-        case .ollama:     "#FACC15"
-        case .lmstudio:   "#A3E635"
-        case .deepseek:   "#5B8FF9"
-        case .qwen:       "#FF6A00"
-        case .moonshot:   "#7C5CFC"
         }
     }
 
     var defaultModel: String {
         switch self {
-        case .anthropic:  "claude-sonnet-4-6"
-        // The CLI takes an alias, not an API model id.
+        case .anthropic: "claude-sonnet-4-6"
+        case .google:    "gemini-2.0-flash"
+        case .openai:    "gpt-4o"
+        case .ollama:    "llama3.2"
+        case .lmstudio:  "local-model"
+        case .deepseek:  "deepseek-chat"
+        case .qwen:      "qwen-max"
+        case .moonshot:  "moonshot-v1-32k"
         case .claudeCode: "sonnet"
-        case .google:     "gemini-2.0-flash"
-        case .openai:     "gpt-4o"
-        case .ollama:     "llama3.2"
-        case .lmstudio:   "local-model"
-        case .deepseek:   "deepseek-chat"
-        case .qwen:       "qwen-max"
-        case .moonshot:   "moonshot-v1-32k"
         }
     }
 
     var keychainKey: String {
         switch self {
-        case .anthropic:  "anthropic-api-key"
+        case .anthropic: "anthropic-api-key"
+        case .google:    "google-api-key"
+        case .openai:    "openai-api-key"
+        case .ollama:    ""
+        case .lmstudio:  ""
+        case .deepseek:  "deepseek-api-key"
+        case .qwen:      "qwen-api-key"
+        case .moonshot:  "moonshot-api-key"
         case .claudeCode: ""
-        case .google:     "google-api-key"
-        case .openai:     "openai-api-key"
-        case .ollama:     ""
-        case .lmstudio:   ""
-        case .deepseek:   "deepseek-api-key"
-        case .qwen:       "qwen-api-key"
-        case .moonshot:   "moonshot-api-key"
         }
     }
 
-    /// Answered by a server running on this Mac, reached over HTTP.
     var isLocal: Bool {
         self == .ollama || self == .lmstudio
     }
 
-    /// Needs neither an API key nor a server URL. `claudeCode` belongs here but
-    /// NOT in `isLocal`: it is not an HTTP endpoint, and the code that builds a
-    /// base URL or picks between the two local servers must not pick it up.
-    var needsNoCredential: Bool {
-        isLocal || self == .claudeCode
+    /// Ollama and LM Studio need a server URL, Claude Code needs the CLI: none takes a key.
+    var needsAPIKey: Bool {
+        !isLocal && self != .claudeCode
     }
 
     var pillID: String {
         switch self {
-        case .anthropic:  "ai_anthropic"
-        case .claudeCode: "ai_claude_code"
-        case .google:     "ai_google"
-        case .openai:     "ai_openai"
-        case .ollama:     "ai_ollama"
-        case .lmstudio:   "ai_lmstudio"
-        case .deepseek:   "ai_deepseek"
-        case .qwen:       "ai_qwen"
-        case .moonshot:   "ai_moonshot"
+        case .anthropic: "ai_anthropic"
+        case .google:    "ai_google"
+        case .openai:    "ai_openai"
+        case .ollama:    "ai_ollama"
+        case .lmstudio:  "ai_lmstudio"
+        case .deepseek:  "ai_deepseek"
+        case .qwen:      "ai_qwen"
+        case .moonshot:  "ai_moonshot"
+        case .claudeCode: "ai_claudecode"
         }
     }
 
     init?(pillID: String) {
         switch pillID {
-        case "ai_anthropic":   self = .anthropic
-        case "ai_claude_code": self = .claudeCode
-        case "ai_google":      self = .google
-        case "ai_openai":      self = .openai
-        case "ai_ollama":      self = .ollama
-        case "ai_lmstudio":    self = .lmstudio
-        case "ai_deepseek":    self = .deepseek
-        case "ai_qwen":        self = .qwen
-        case "ai_moonshot":    self = .moonshot
+        case "ai_anthropic": self = .anthropic
+        case "ai_google":    self = .google
+        case "ai_openai":    self = .openai
+        case "ai_ollama":    self = .ollama
+        case "ai_lmstudio":  self = .lmstudio
+        case "ai_deepseek":  self = .deepseek
+        case "ai_qwen":      self = .qwen
+        case "ai_moonshot":  self = .moonshot
+        case "ai_claudecode": self = .claudeCode
         default:             return nil
         }
     }
@@ -254,8 +250,6 @@ enum IslandConst {
         .listening:    ViewLayout(height: 160, botX: 68,  botY: nil, botDiameter: 58, agentMode: .none),
         // Voice result: same layout as listening — Mochi on left, ✓/✗ on right
         .voiceResult:  ViewLayout(height: 160, botX: 68,  botY: nil, botDiameter: 58, agentMode: .none),
-        // Screen capture: Mochi on the left (he just swallowed it), the image and what to do with it
-        .capture:      ViewLayout(height: 160, botX: 58,  botY: nil, botDiameter: 52, agentMode: .none),
     ]
 
     // Project colors — keyed by lowercase display name or slug

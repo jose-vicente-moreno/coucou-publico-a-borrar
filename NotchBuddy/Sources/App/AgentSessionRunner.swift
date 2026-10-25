@@ -20,9 +20,10 @@ import Foundation
 //
 // GitHub build only: the App Store build is sandboxed and can't start a command.
 //
-// Deliberately NOT reusing `ClaudeCodeChat.environment()`: that one strips
-// ANTHROPIC_API_KEY so the chat provider bills the account. Here we are resuming
-// the user's own work and must not change how their session authenticates.
+// Deliberately NOT reusing `ClaudeCodeLocator.environment()`: that one strips
+// ANTHROPIC_API_KEY so the chat provider bills the account, and it clears the
+// nested-session markers. Here we are resuming the user's own work and must not
+// change how their session authenticates or how its hooks see it.
 
 enum AgentRunError: Error, Equatable {
     case executableNotFound(AgentKind)
@@ -76,8 +77,8 @@ enum AgentSessionRunner {
     ) -> String? {
         switch agent {
         case .claudeCode:
-            // Same list the chat provider uses.
-            return ClaudeCodeChat.executablePath(home: home, isExecutable: isExecutable)
+            // The same list the chat provider uses, from its own locator.
+            return ClaudeCodeLocator.executable(home: home, isExecutable: isExecutable)?.path
         case .codex:
             return codexSearchPaths(home: home).first(where: isExecutable)
         }

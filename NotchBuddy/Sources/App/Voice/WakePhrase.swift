@@ -21,7 +21,8 @@ enum WakePhrase {
     /// preserving the original casing and punctuation of the command portion.
     ///
     /// Accepted patterns (case-insensitive, after phonetic normalisation):
-    /// - "ok coucou" and variants: "okay coucou", "ok cuckoo", "ok kuku", "ok cou cou" …
+    /// - "ok coucou" and variants: "okay coucou", "ok cuckoo", "ok kuku", "ok cou cou",
+    ///   Spanish "okey cucú", "oye coucou" …
     /// - "hey coucou"
     ///
     /// Word-boundary search means "euh ok coucou add" matches and returns "add".
@@ -91,6 +92,13 @@ enum WakePhrase {
             .replacingOccurrences(of: "kuku",   with: "coucou")
             .replacingOccurrences(of: "kucou",  with: "coucou")
             .replacingOccurrences(of: "okay",   with: "ok")
-        return t
+        // How Spanish recognition writes it: whole words only ("cucurucho" stays itself).
+        return spanishWords[t] ?? t
     }
+
+    private static let spanishWords: [String: String] = [
+        "cucu": "coucou", "cucú": "coucou", "cu": "cou", "cú": "cou",
+        "okey": "ok", "oki": "ok", "okei": "ok",
+        "oye": "hey", "ey": "hey", "hei": "hey",
+    ]
 }

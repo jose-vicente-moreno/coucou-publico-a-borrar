@@ -7,6 +7,8 @@ import AppKit
 struct UploadCanvasView: View {
     @ObservedObject var state: AppState
     @State private var fileIcon: NSImage? = nil
+    /// "Save to brain" is offered once a brain folder is set (read on drop, not every frame).
+    @State private var canSaveToBrain = false
 
     private var engine: UploadSequenceEngine { .shared }
 
@@ -30,9 +32,11 @@ struct UploadCanvasView: View {
         }
         .onChange(of: state.droppedFile?.url) { _, url in
             if let url { loadIcon(url: url) }
+            updateBrainChoice()
         }
         .onAppear {
             if let url = state.droppedFile?.url { loadIcon(url: url) }
+            updateBrainChoice()
         }
         .frame(width: 640, height: 176)
     }
@@ -43,6 +47,12 @@ struct UploadCanvasView: View {
         let img = NSWorkspace.shared.icon(forFile: url.path)
         img.size = NSSize(width: 64, height: 64)
         fileIcon = img
+    }
+
+    private func updateBrainChoice() {
+        #if !APPSTORE
+        canSaveToBrain = BrainController.shared.vaultURL != nil
+        #endif
     }
 
     // MARK: - Choose overlay (transparent SwiftUI buttons over canvas)
@@ -80,6 +90,25 @@ struct UploadCanvasView: View {
             .buttonStyle(.plain)
             .frame(width: 120, height: 26)
             .position(x: 290 + 60, y: 113 + 13)   // center = (350, 126)
+
+            // Secondary: "Save to brain" (a brain folder is set)
+            #if !APPSTORE
+            if canSaveToBrain {
+                Button {
+                    BrainActions.saveDroppedFile()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+                        UploadSequenceEngine.shared.deactivate()
+                    }
+                } label: {
+                    Color.clear
+                        .frame(width: 112, height: 26)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .frame(width: 112, height: 26)
+                .position(x: 418 + 56, y: 113 + 13)   // center = (474, 126)
+            }
+            #endif
         }
         .opacity(f.chooseAlpha)
         .allowsHitTesting(f.chooseAlpha > 0.5)
@@ -288,6 +317,16 @@ struct UploadCanvasView: View {
             .font(.system(size:12.5, weight:.medium))
             .foregroundColor(Color(hex:"#F1F2F4"))
         cCtx.draw(btn2, at: CGPoint(x:350, y:126), anchor: .center)
+
+        // Secondary button: save to the brain's inbox (a brain folder is set)
+        if canSaveToBrain {
+            cCtx.fill(roundedRect(CGRect(x:418,y:113,width:112,height:26), r:13),
+                      with: .color(Color.white.opacity(0.09)))
+            let btn3 = Text("Save to brain")
+                .font(.system(size:12.5, weight:.medium))
+                .foregroundColor(Color(hex:"#F1F2F4"))
+            cCtx.draw(btn3, at: CGPoint(x:474, y:126), anchor: .center)
+        }
     }
 
     // MARK: - Mochi (superellipse body + eyes + mouth)

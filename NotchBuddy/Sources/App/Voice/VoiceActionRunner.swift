@@ -48,7 +48,7 @@ protocol VoiceInfoProviding {
     var webSearchEnabled: Bool { get }
     var hasWebKey: Bool { get }
     /// A short spoken answer from Claude with web search; nil on any failure.
-    func webAnswer(_ question: String, history: [VoiceWebTurn], french: Bool) async -> String?
+    func webAnswer(_ question: String, history: [VoiceWebTurn], lang: VoiceLang) async -> String?
 }
 
 /// One earlier exchange of the web conversation, kept in memory only.
@@ -67,7 +67,7 @@ private final class NullInfo: VoiceInfoProviding {
     func showMailCard(to address: String, subject: String, body: String, file: URL?) {}
     var webSearchEnabled: Bool { false }
     var hasWebKey: Bool { false }
-    func webAnswer(_ question: String, history: [VoiceWebTurn], french: Bool) async -> String? { nil }
+    func webAnswer(_ question: String, history: [VoiceWebTurn], lang: VoiceLang) async -> String? { nil }
 }
 
 // MARK: - Null implementations (test-safe, no AppKit)
@@ -119,8 +119,8 @@ final class VoiceActionRunner {
     /// run() or handleAnswer(). Used to produce responses in the spoken language rather than the UI language.
     var commandLocale: Locale? = nil
 
-    /// Called with "fr" / "en" when I accept to be answered in the language I speak.
-    var onLanguageSwitch: ((String) -> Void)?
+    /// Called with the language I speak when I accept to be answered in it.
+    var onLanguageSwitch: ((VoiceLang) -> Void)?
 
     init() {}
 
@@ -152,28 +152,28 @@ final class VoiceActionRunner {
 
         case .musicPause:
             guard music.isMusicRunning || music.isSpotifyRunning else {
-                return fail("voice.no-music-app")
+                return fail("voice.music-no-app")
             }
             music.pause()
             return ok("voice.music-paused")
 
         case .musicNext:
             guard music.isMusicRunning || music.isSpotifyRunning else {
-                return fail("voice.no-music-app")
+                return fail("voice.music-no-app")
             }
             music.nextTrack()
             return ok("voice.music-next")
 
         case .musicPrevious:
             guard music.isMusicRunning || music.isSpotifyRunning else {
-                return fail("voice.no-music-app")
+                return fail("voice.music-no-app")
             }
             music.previousTrack()
             return ok("voice.music-prev")
 
         case .musicVolumeUp:
             guard music.isMusicRunning || music.isSpotifyRunning else {
-                return fail("voice.no-music-app")
+                return fail("voice.music-no-app")
             }
             volumeCommandExecuted = true
             music.volumeUp()
@@ -181,7 +181,7 @@ final class VoiceActionRunner {
 
         case .musicVolumeDown:
             guard music.isMusicRunning || music.isSpotifyRunning else {
-                return fail("voice.no-music-app")
+                return fail("voice.music-no-app")
             }
             volumeCommandExecuted = true
             music.volumeDown()
@@ -189,7 +189,7 @@ final class VoiceActionRunner {
 
         case .musicSetVolume(let pct):
             guard music.isMusicRunning || music.isSpotifyRunning else {
-                return fail("voice.no-music-app")
+                return fail("voice.music-no-app")
             }
             volumeCommandExecuted = true
             music.setVolume(pct)
@@ -337,20 +337,21 @@ final class VoiceActionRunner {
             return ok("voice.question-cancelled")
         }
 
-        // "Want me to answer in French?" — yes / no, in either language.
-        if case .switchLanguage(let lang) = pending.kind {
+        // "Want me to answer in French?" — yes / no, in any of the three languages.
+        if case .switchLanguage(let target) = pending.kind {
             if Self.isYes(transcript) {
-                onLanguageSwitch?(lang)
-                commandLocale = Locale(identifier: lang == "fr" ? "fr-FR" : "en-US")
-                return .init(outcome: .success, message: lang == "fr"
-                    ? "D'accord, je te réponds en français maintenant."
-                    : "Sure, I'll answer in English from now on.")
+                onLanguageSwitch?(target)
+                commandLocale = target.locale
+                return .init(outcome: .success, message: target.t(
+                    "D'accord, je te réponds en français maintenant.",
+                    "Sure, I'll answer in English from now on.",
+                    "Vale, a partir de ahora te respondo en español."))
             }
             if Self.isNo(transcript) {
-                let current = commandLocale?.language.languageCode?.identifier ?? "en"
-                return .init(outcome: .success, message: current == "fr"
-                    ? "OK, je continue en français."
-                    : "Okay, I'll keep answering in English.")
+                return .init(outcome: .success, message: lang.t(
+                    "OK, je continue en français.",
+                    "Okay, I'll keep answering in English.",
+                    "Vale, sigo en español."))
             }
             if !pending.askedAgain {
                 var again = pending; again.askedAgain = true; pendingQuestion = again
@@ -369,7 +370,8 @@ final class VoiceActionRunner {
             var name = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
             if case .musicPlayPlaylist(let n) = IntentParser.parse(transcript, pills: availablePills),
                !n.isEmpty { name = n }
-            for prefix in ["la playlist ", "ma playlist ", "playlist ", "the playlist "]
+            for prefix in ["la playlist ", "ma playlist ", "mi playlist ", "la lista de reproducción ",
+                           "mi lista de reproducción ", "la lista ", "mi lista ", "playlist ", "the playlist "]
             where name.lowercased().hasPrefix(prefix) {
                 name = String(name.dropFirst(prefix.count))
             }
@@ -424,21 +426,24 @@ final class VoiceActionRunner {
         guard info.webSearchEnabled, info.hasWebKey else {
             let msg = info.hasWebKey
                 ? t("La recherche web est coupée. Active-la dans Réglages, Voix.",
-                    "Web search is off. Turn it on in Settings, Voice.")
+                    "Web search is off. Turn it on in Settings, Voice.",
+                    "La búsqueda web está desactivada. Actívala en Ajustes, Voz.")
                 : t("Pour chercher sur internet, ajoute ta clé API Anthropic dans Réglages, puis active la recherche web dans Voix.",
-                    "To search the web, add your Anthropic API key in Settings, then turn on web search in Voice.")
+                    "To search the web, add your Anthropic API key in Settings, then turn on web search in Voice.",
+                    "Para buscar en internet, añade tu clave de API de Anthropic en Ajustes y activa la búsqueda web en Voz.")
             return .init(outcome: .failure, message: msg)
         }
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if q.isEmpty {
-            let text = t("Qu'est-ce que je cherche ?", "What should I look up?")
+            let text = t("Qu'est-ce que je cherche ?", "What should I look up?", "¿Qué busco?")
             pendingQuestion = PendingVoiceQuestion(kind: .webQuery, text: text)
             return .init(outcome: .question(text: text), message: text)
         }
-        guard let answer = await info.webAnswer(q, history: webHistory, french: answersFrench),
+        guard let answer = await info.webAnswer(q, history: webHistory, lang: lang),
               !answer.isEmpty else {
             return .init(outcome: .failure, message: t("Je n'arrive pas à chercher sur internet là, réessaie dans un instant.",
-                                                       "I can't reach the web right now, try again in a moment."))
+                                                       "I can't reach the web right now, try again in a moment.",
+                                                       "Ahora mismo no consigo buscar en internet, inténtalo en un momento."))
         }
         webHistory.append(VoiceWebTurn(question: q, answer: answer))
         if webHistory.count > 6 { webHistory.removeFirst(webHistory.count - 6) }
@@ -478,8 +483,9 @@ final class VoiceActionRunner {
         return false
     }
 
-    private var answersFrench: Bool { commandLocale?.language.languageCode?.identifier == "fr" }
-    private func t(_ fr: String, _ en: String) -> String { answersFrench ? fr : en }
+    /// The answer language (English when no locale is set).
+    private var lang: VoiceLang { VoiceLang(locale: commandLocale) }
+    private func t(_ fr: String, _ en: String, _ es: String) -> String { lang.t(fr, en, es) }
 
     func startMail(_ request: VoiceQuery.MailRequest) async -> VoiceActionResult {
         mail = request
@@ -509,14 +515,16 @@ final class VoiceActionRunner {
             let who = m.recipient.trimmingCharacters(in: .whitespaces)
             if who.isEmpty {
                 return askMail(.recipient, t("À qui j'envoie le mail ? Dis son nom ou son adresse.",
-                                             "Who should I send it to? Say a name or an email address."))
+                                             "Who should I send it to? Say a name or an email address.",
+                                             "¿A quién se lo envío? Dime su nombre o su dirección."))
             }
             if let address = await info.resolveEmail(who) {
                 mailAddress = address
             } else {
                 m.recipient = ""; mail = m
                 return askMail(.recipient, t("Je ne trouve pas \(who) dans tes contacts. Dis-moi son adresse mail.",
-                                             "I can't find \(who) in your contacts. What's the email address?"))
+                                             "I can't find \(who) in your contacts. What's the email address?",
+                                             "No encuentro a \(who) en tus contactos. Dime su dirección de correo."))
             }
         }
         if let name = m.file, mailFile == nil {
@@ -526,11 +534,12 @@ final class VoiceActionRunner {
                 mailFile = url
             } else {
                 return askMail(.attachment, t("Je ne trouve pas « \(name) ». Glisse-le sur le notch, ou dis non.",
-                                              "I can't find “\(name)”. Drop it on the notch, or say no."))
+                                              "I can't find “\(name)”. Drop it on the notch, or say no.",
+                                              "No encuentro «\(name)». Arrástralo al notch, o di que no."))
             }
         }
         if m.subject == nil {
-            return askMail(.subject, t("Quel est l'objet ?", "What's the subject?"))
+            return askMail(.subject, t("Quel est l'objet ?", "What's the subject?", "¿Cuál es el asunto?"))
         }
         if m.body == nil {
             if let what = m.instruction {
@@ -538,21 +547,25 @@ final class VoiceActionRunner {
                 mail = m
             } else {
                 return askMail(.body, t("Qu'est-ce que je lui dis ? Je l'écris pour toi.",
-                                        "What should the email say? I'll write it for you."))
+                                        "What should the email say? I'll write it for you.",
+                                        "¿Qué le digo? Lo escribo por ti."))
             }
         }
         if !mailAttachmentAsked {
             mailAttachmentAsked = true
             return askMail(.attachment, t("Une pièce jointe ? Glisse-la sur le notch, ou dis non.",
-                                          "Any attachment? Drop it on the notch, or say no."))
+                                          "Any attachment? Drop it on the notch, or say no.",
+                                          "¿Algún adjunto? Arrástralo al notch, o di que no."))
         }
 
         info.showMailCard(to: mailAddress ?? m.recipient, subject: m.subject ?? "", body: m.body ?? "", file: mailFile)
         mail = nil
-        let with = mailFile.map { t(" avec \($0.lastPathComponent)", " with \($0.lastPathComponent)") } ?? ""
+        let with = mailFile.map { t(" avec \($0.lastPathComponent)", " with \($0.lastPathComponent)",
+                                    " con \($0.lastPathComponent)") } ?? ""
         return .init(outcome: .success,
                      message: t("Voilà ton mail\(with). Relis-le et clique sur Envoyer.",
-                                "Here's your email\(with). Check it and click Send."))
+                                "Here's your email\(with). Check it and click Send.",
+                                "Aquí tienes tu correo\(with). Revísalo y haz clic en Enviar."))
     }
 
     private func answerMail(_ field: PendingVoiceQuestion.MailField, _ transcript: String,
@@ -565,11 +578,13 @@ final class VoiceActionRunner {
             // Silence after "any attachment?" means none; anywhere else it cancels the mail.
             if field == .attachment { return await continueMail() }
             mail = nil
-            return .init(outcome: .success, message: t("OK, j'annule le mail.", "Okay, I cancelled the email."))
+            return .init(outcome: .success, message: t("OK, j'annule le mail.", "Okay, I cancelled the email.",
+                                                       "Vale, cancelo el correo."))
         }
         if Self.cancelsMail(said) {
             mail = nil
-            return .init(outcome: .success, message: t("OK, j'annule le mail.", "Okay, I cancelled the email."))
+            return .init(outcome: .success, message: t("OK, j'annule le mail.", "Okay, I cancelled the email.",
+                                                       "Vale, cancelo el correo."))
         }
         switch field {
         case .recipient:
@@ -588,7 +603,8 @@ final class VoiceActionRunner {
                 } else if !pending.askedAgain {
                     var again = PendingVoiceQuestion(kind: .mailStep(.attachment),
                         text: t("Je ne trouve pas « \(name) ». Glisse-le sur le notch, ou dis non.",
-                                "I can't find “\(name)”. Drop it on the notch, or say no."))
+                                "I can't find “\(name)”. Drop it on the notch, or say no.",
+                                "No encuentro «\(name)». Arrástralo al notch, o di que no."))
                     again.askedAgain = true
                     pendingQuestion = again
                     return .init(outcome: .question(text: again.text), message: again.text)
@@ -599,40 +615,52 @@ final class VoiceActionRunner {
         return await continueMail()
     }
 
-    /// "Annule", "laisse tomber", "cancel"… as the whole answer stops the voice email.
+    /// "Annule", "laisse tomber", "cancel", "cancela"… as the whole answer stops the voice email.
     static func cancelsMail(_ s: String) -> Bool {
         let t = IntentParser.normalise(s)
         return ["annule", "annuler", "annule le mail", "annule tout", "laisse tomber", "oublie",
-                "stop", "cancel", "cancel it", "never mind", "forget it"].contains(t)
+                "stop", "cancel", "cancel it", "never mind", "forget it",
+                "cancela", "cancelar", "cancelalo", "cancela el correo", "cancela todo", "anula", "anulalo",
+                "olvidalo", "dejalo", "da igual"].contains(t)
     }
 
     /// Asked once, in the current answer language, when I speak another one.
-    func offerLanguageSwitch(to lang: String) -> String {
-        let current = commandLocale?.language.languageCode?.identifier ?? "en"
+    func offerLanguageSwitch(to target: VoiceLang) -> String {
+        let current = lang
+        let name = target.name(in: current)
         let text: String
-        if lang == "fr" {
-            text = current == "fr" ? "Tu veux que je te réponde en français ?"
-                                   : "By the way, you're speaking French. Want me to answer in French?"
+        if target == current {
+            text = current.t("Tu veux que je te réponde en \(name) ?", "Want me to answer in \(name)?",
+                             "¿Quieres que te responda en \(name)?")
         } else {
-            text = current == "fr" ? "Au fait, tu me parles en anglais. Tu veux que je te réponde en anglais ?"
-                                   : "Want me to answer in English?"
+            text = current.t("Au fait, tu me parles en \(name). Tu veux que je te réponde en \(name) ?",
+                             "By the way, you're speaking \(name). Want me to answer in \(name)?",
+                             "Por cierto, me hablas en \(name). ¿Quieres que te responda en \(name)?")
         }
-        pendingQuestion = PendingVoiceQuestion(kind: .switchLanguage(to: lang), text: text)
+        pendingQuestion = PendingVoiceQuestion(kind: .switchLanguage(to: target), text: text)
         return text
     }
 
     static func isYes(_ s: String) -> Bool {
         let t = " " + IntentParser.normalise(s) + " "
         if isNo(s) { return false }
+        // Spanish "sí" only first: "si" inside a French sentence is "if".
+        if t.hasPrefix(" si ") { return true }
         return ["oui", "ouais", "ouai", "yes", "yeah", "yep", "sure", "ok", "okay", "d accord", "vas y",
                 "volontiers", "carrement", "please", "absolument", "bien sur", "go", "of course", "why not",
-                "pourquoi pas", "allez"].contains { t.contains(" " + $0 + " ") }
+                "pourquoi pas", "allez",
+                "vale", "claro", "venga", "de acuerdo", "por supuesto", "por favor", "perfecto", "dale",
+                "por que no", "porque no"].contains { t.contains(" " + $0 + " ") }
     }
 
     static func isNo(_ s: String) -> Bool {
-        let t = " " + IntentParser.normalise(s) + " "
+        // "¿Por qué no?" is a yes.
+        let t = (" " + IntentParser.normalise(s) + " ")
+            .replacingOccurrences(of: " por que no ", with: " ")
+            .replacingOccurrences(of: " porque no ", with: " ")
         return ["non", "no", "nope", "nah", "pas besoin", "garde", "keep", "laisse", "c est bon comme ca",
-                "stay", "reste", "don t", "dont"].contains { t.contains(" " + $0 + " ") }
+                "stay", "reste", "don t", "dont",
+                "no hace falta", "para nada", "mejor no", "dejalo", "asi esta bien", "sigue"].contains { t.contains(" " + $0 + " ") }
     }
 
     /// "Je veux que tu ajoutes" (no pill named) → asks which pill, and listens for it.
@@ -640,9 +668,13 @@ final class VoiceActionRunner {
     func askIfIncomplete(_ transcript: String) -> VoiceActionResult? {
         let words = Set(IntentParser.normalise(transcript).split(separator: " ").map(String.init))
         let addVerbs: Set<String> = ["ajoute", "ajoutes", "ajouter", "rajoute", "rajoutes", "rajouter",
-                                     "active", "actives", "activer", "add"]
+                                     "active", "actives", "activer", "add",
+                                     "anade", "anades", "anadas", "anadir", "agrega", "agregues", "agregar",
+                                     "activa", "activar"]
         let removeVerbs: Set<String> = ["enleve", "enleves", "enlever", "retire", "retires", "retirer",
-                                        "supprime", "supprimes", "supprimer", "vire", "virer", "remove"]
+                                        "supprime", "supprimes", "supprimer", "vire", "virer", "remove",
+                                        "quita", "quites", "quitar", "quitame", "elimina", "elimines", "eliminar",
+                                        "borra", "borrar"]
         if !words.isDisjoint(with: removeVerbs) { return ask(.whichPill(add: false), "voice.ask-which-pill-remove") }
         if !words.isDisjoint(with: addVerbs)    { return ask(.whichPill(add: true),  "voice.ask-which-pill-add") }
         return nil

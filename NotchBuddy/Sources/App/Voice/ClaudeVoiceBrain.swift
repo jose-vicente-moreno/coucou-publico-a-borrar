@@ -3,9 +3,10 @@ import Foundation
 
 // MARK: - ClaudeVoiceBrain
 //
-// "OK Coucou, …" handled by Claude (the user's Anthropic key, Settings → Voice), not by
-// the phrase parser or the on-device model: Claude understands any wording, keeps the
-// thread of the conversation and calls Coucou's tools to act.
+// "OK Coucou, …" handled by Claude (the user's Anthropic key, or with no key their own
+// Claude Code login), not by the phrase parser or the on-device model: Claude understands
+// any wording, keeps the thread of the conversation and calls Coucou's tools to act.
+// Through Claude Code the tools are served by the coucou MCP server (CoucouMCP.swift).
 //
 // Tools: pills, music, service_info (Stripe, GitHub, agents…), open_app, prepare_email
 // (the island's mail card opens filled in, the user clicks Send) and Anthropic's
@@ -22,21 +23,31 @@ final class ClaudeVoiceBrain {
         let failed: Bool      // nothing usable came back
     }
 
-    /// Claude is Coucou's brain whenever an Anthropic key is saved (Settings → Chat).
-    static var isActive: Bool {
-        !(ClaudeService.shared.apiKey ?? "").isEmpty
-    }
+    /// Claude is Coucou's brain whenever an Anthropic key is saved (Settings → Chat) or
+    /// Claude Code is installed (the user's Claude login).
+    static var isActive: Bool { ClaudeAccess.voiceAvailable }
 
     private var messages: [[String: Any]] = []
     /// One turn at a time: a second "OK Coucou" during the wait must not interleave.
     private var busy = false
 
-    func reset() { messages = [] }
+    /// Claude Code path: one process per voice conversation, forgotten with it.
+    private var claudeCode: ClaudeCodeSession?
+    /// The MCP bridge runs tools only during one of our own Claude Code turns.
+    private var bridgeOpen = false
+    private var bridgeActed = false
+
+    func reset() {
+        messages = []
+        claudeCode?.reset()
+        claudeCode = nil
+    }
 
     // MARK: Turn
 
     func respond(to transcript: String) async -> Reply? {
         guard !busy else { return nil }
+        if ClaudeAccess.usesClaudeCode { return await respondWithClaudeCode(to: transcript) }
         busy = true
         defer { busy = false; repairHistory() }
         messages.append(["role": "user", "content": transcript])
@@ -107,22 +118,87 @@ final class ClaudeVoiceBrain {
         messages.removeFirst(min(cut, messages.count - 1))
     }
 
+    // MARK: Claude Code turn
+
+    private func respondWithClaudeCode(to transcript: String) async -> Reply? {
+        guard let executable = ClaudeCodeLocator.executable() else { return nil }
+        busy = true
+        bridgeOpen = true
+        bridgeActed = false
+        defer { busy = false; bridgeOpen = false }
+
+        let session: ClaudeCodeSession
+        if let claudeCode { session = claudeCode } else {
+            let profile = ClaudeCodeProfile(
+                model: "haiku", workingDirectory: ClaudeCodeUtility.workingDirectory,
+                systemPrompt: .replace(Self.rules + "\nYour tools come from the coucou MCP server, plus WebSearch."),
+                tools: ["WebSearch"], allowedTools: ["WebSearch", "mcp__\(CoucouMCP.serverName)"],
+                loadUserSettings: false, mcpConfigJSON: CoucouMCP.configJSON,
+                persistSession: false, disableSlashCommands: true)
+            session = ClaudeCodeSession(
+                executable: executable, profile: profile,
+                logURL: FileManager.default.homeDirectoryForCurrentUser
+                    .appendingPathComponent("Library/Logs/NotchBuddy/claude-code-voice.log"),
+                idleTimeout: 300)
+            claudeCode = session
+        }
+        // What changes between turns (time, language, pills) travels with the words.
+        let text = "[\(Self.context())]\n\(transcript)"
+        guard let line = ClaudeCodeStream.userMessageLine(content: [["type": "text", "text": text]]) else { return nil }
+        do {
+            let result = try await session.send(line, timeout: 45) { _ in }
+            let spoken = VoiceQuery.spokenText(result.text)
+            return Reply(text: spoken, acted: bridgeActed, failed: spoken.isEmpty && !bridgeActed)
+        } catch {
+            appendAppLog("nb.log", "[Voice] Claude Code turn failed: \(error.localizedDescription)")
+            return bridgeActed ? Reply(text: "", acted: true, failed: false) : nil
+        }
+    }
+
+    /// `coucou_kind: "mcp_voice"` requests from coucou-mcp.py. Returns the JSON reply line.
+    func handleMCP(_ payload: [String: Any]) async -> String {
+        switch payload["method"] as? String {
+        case "tools/list":
+            return CoucouMCP.json(["tools": CoucouMCP.mcpTools(from: Self.tools)])
+        case "tools/call":
+            guard bridgeOpen else {
+                return CoucouMCP.json(CoucouMCP.callResult(text: "No voice request is in progress.", isError: true))
+            }
+            let name = payload["name"] as? String ?? ""
+            let input = payload["arguments"] as? [String: Any] ?? [:]
+            let (text, acted) = await run(tool: name, input: input)
+            if acted { bridgeActed = true }
+            return CoucouMCP.json(CoucouMCP.callResult(text: text, isError: false))
+        default:
+            return CoucouMCP.json(["error": "unknown method"])
+        }
+    }
+
     // MARK: Prompt
 
     private static func systemPrompt() -> String {
-        let fr = VoiceSettings.language == "fr"
+        "\(rules)\n\(context())"
+    }
+
+    /// The parts of the prompt that change: time, language, pills.
+    private static func context() -> String {
+        let lang = VoiceSettings.voiceLang
         let today = Date().formatted(.dateTime.weekday(.wide).day().month(.wide).year().hour().minute()
-            .locale(Locale(identifier: fr ? "fr_FR" : "en_US")))
+            .locale(lang.formatLocale))
         let state = AppState.shared
         let active = ([state.mainPillId] + Array(state.activeIntegrations))
             .compactMap { PillCatalog.definition(for: $0)?.name }
         let available = PillCatalog.available.map(\.name).joined(separator: ", ")
-        let language = fr ? "French" : "English"
-        return """
+        return "It is \(today). Answer in \(lang.englishName) (the user may speak French, English or Spanish). "
+            + "Pills in the notch (at most 4 besides the main one). Active: \(active.joined(separator: ", ")). "
+            + "Available: \(available)."
+    }
+
+    private static let rules = """
         You are Coucou, a voice assistant living in the notch of the user's Mac, a bit like Jarvis: \
-        quick, warm, a little playful. It is \(today).
-        Everything you write is read aloud: answer in \(language) (the user may speak French or English), \
-        in one or two short sentences, no markdown, no lists, no emojis, no links.
+        quick, warm, a little playful.
+        Everything you write is read aloud: answer in one or two short sentences, \
+        no markdown, no lists, no emojis, no links.
         Act with the tools instead of describing: pills, music, service_info for the user's own data \
         (Stripe sales, GitHub, Vercel, Resend, n8n, Notion, Cal.com, agent sessions like Claude Code, \
         plan usage, music), open_app, prepare_email, and web_search for anything current \
@@ -134,10 +210,7 @@ final class ClaudeVoiceBrain {
         wants_attachment and tell them to drop the file on the notch.
         When you need an answer from the user, end with one short question. Otherwise never end \
         with a question.
-        Pills in the notch (at most 4 besides the main one). Active: \(active.joined(separator: ", ")). \
-        Available: \(available).
         """
-    }
 
     // MARK: Tools
 

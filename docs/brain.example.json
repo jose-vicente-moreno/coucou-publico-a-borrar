@@ -1,0 +1,27 @@
+{
+  "prompt": "Extra instructions appended to Mochi's brain prompt.",
+  "inbox": {
+    "folder": "Inbox",
+    "attachments": "Inbox/attachments",
+    "ignore": ["README.md"],
+    "noteHeader": "- Captured: {date}\n- Source: Coucou — {source}"
+  },
+  "counters": [
+    {
+      "label": "Inbox",
+      "kind": "notesWithoutFrontmatter",
+      "paths": ["Inbox"],
+      "action": { "label": "Process", "send": "/process-inbox" }
+    },
+    {
+      "label": "Drafts",
+      "kind": "files",
+      "paths": ["Drafts", "~/Notes/queue"],
+      "pattern": "*.md",
+      "action": { "label": "Review", "draft": "/review " }
+    }
+  ],
+  "services": [
+    { "name": "Search", "health": "http://localhost:1234/health", "open": "http://localhost:1234" }
+  ]
+}

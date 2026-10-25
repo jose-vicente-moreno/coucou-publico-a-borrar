@@ -108,6 +108,8 @@ enum PillCatalog {
               category: .ai,        subtitle: "Chat",         source: .n8n),
         .init(id: "ai_lmstudio",         name: "LM Studio",   color: ChatProvider.lmstudio.accentHex,
               category: .ai,        subtitle: "Chat",         source: .n8n),
+        .init(id: "ai_claudecode",       name: "Claude Code", color: ChatProvider.claudeCode.accentHex,
+              category: .ai,        subtitle: "Chat",         source: .n8n,    githubOnly: true),
         // ── Services ─────────────────────────────────────────────────────────
         .init(id: "integration_resend",  name: "Resend",      color: "#22C55E",
               category: .service,   subtitle: "Integration",  source: .n8n),
@@ -133,6 +135,9 @@ enum PillCatalog {
               category: .service,   subtitle: "Integration",  source: .n8n),
         .init(id: "integration_portfolio", name: "Portfolio",   color: "#FFD700",
               category: .service,   subtitle: "Integration",  source: .n8n),
+        // The Claude Code chat's vault ("brain"): its inbox, sessions and learnings.
+        .init(id: "integration_brain",   name: "Brain",       color: "#8B5CF6",
+              category: .service,   subtitle: "Integration",  source: .n8n, githubOnly: true),
     ]
 
     /// Pills available in the current build target.

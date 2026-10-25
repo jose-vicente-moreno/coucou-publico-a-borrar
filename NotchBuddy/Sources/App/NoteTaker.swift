@@ -73,7 +73,9 @@ final class NoteTaker: ObservableObject {
         if let saved = UserDefaults.standard.string(forKey: Self.engineKey), let engine = NoteSummaryEngine(rawValue: saved) {
             summaryEngine = engine
         } else {
-            summaryEngine = FlowCleanup.hasKey ? .claude : (Self.appleModelAvailable ? .apple : .off)
+            // Claude by default only with a saved key: the Claude Code login alone must not
+            // send recorded calls out until the user picks Claude for the summaries.
+            summaryEngine = ClaudeAccess.hasAPIKey ? .claude : (Self.appleModelAvailable ? .apple : .off)
         }
         load()
         loadVocabulary()
@@ -452,9 +454,13 @@ final class NoteTaker: ObservableObject {
         let reply: String?
         switch summaryEngine {
         case .claude:
-            let key = KeychainStore.shared.get("anthropic-api-key") ?? ""
-            let model = AppState.shared.claudeModel.isEmpty ? AppState.defaultClaudeModel : AppState.shared.claudeModel
-            reply = key.isEmpty ? nil : await Self.claudeSummary(transcript, key: key, model: model)
+            if ClaudeAccess.usesClaudeCode {
+                reply = await Self.claudeCodeSummary(transcript)
+            } else {
+                let key = KeychainStore.shared.get("anthropic-api-key") ?? ""
+                let model = AppState.shared.claudeModel.isEmpty ? AppState.defaultClaudeModel : AppState.shared.claudeModel
+                reply = key.isEmpty ? nil : await Self.claudeSummary(transcript, key: key, model: model)
+            }
         case .apple:
             reply = await Self.appleSummary(transcript)
         case .off:
@@ -481,6 +487,20 @@ final class NoteTaker: ObservableObject {
     {"title": "a short title, 6 words at most", "summary": "2 to 4 sentences: what was decided and why", \
     "key_points": ["up to 6 short points"], "todos": [{"text": "the task", "owner": "the person's name as written in the transcript, or null", "due": "the deadline as said, or null"}]}
     """
+
+    /// The same summary through the Claude Code login (no key): a one-off process, the
+    /// transcript can be long.
+    nonisolated private static func claudeCodeSummary(_ transcript: String) async -> String? {
+        #if !APPSTORE
+        let text = try? await ClaudeCodeUtility.shared.complete(
+            .noteSummary, system: summaryInstructions,
+            text: "<transcript>\n\(transcript.prefix(400_000))\n</transcript>",
+            model: "sonnet", timeout: 180, fresh: true)
+        return (text?.isEmpty ?? true) ? nil : text
+        #else
+        return nil
+        #endif
+    }
 
     nonisolated private static func claudeSummary(_ transcript: String, key: String, model: String) async -> String? {
         await claude(system: summaryInstructions, user: "<transcript>\n\(transcript.prefix(400_000))\n</transcript>",

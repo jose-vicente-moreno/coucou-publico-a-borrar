@@ -89,6 +89,7 @@ final class HookServer: @unchecked Sendable {
         case "agent_copilot": return "Handled in Copilot CLI."
         case "agent_muse":    return "Handled in Muse Code."
         case "agent_hermes":  return "Handled in Hermes."
+        case Self.brainPillId: return "Mochi stopped asking."
         default:              return "Handled in \(claudeHostName)."
         }
     }
@@ -102,6 +103,7 @@ final class HookServer: @unchecked Sendable {
         case "agent_copilot": return "Still waiting in Copilot CLI."
         case "agent_muse":    return "Still waiting in Muse Code."
         case "agent_hermes":  return "Still waiting in Hermes."
+        case Self.brainPillId: return "No answer: Mochi went on without it."
         default:              return "Still waiting in \(claudeHostName)."
         }
     }
@@ -116,17 +118,20 @@ final class HookServer: @unchecked Sendable {
             if shown.queueCount != approvals.count { state.pendingApproval?.queueCount = approvals.count }
             return
         }
-        state.updateTask(id: head.pillId, state: .approval)
         state.pendingApproval = ApprovalInfo(sessionId: head.sessionId, tool: head.tool,
                                               command: head.command, inputKey: head.inputKey,
                                               pillId: head.pillId, id: head.id,
                                               queueCount: approvals.count,
                                               projectName: head.projectName)
         state.isPinned = true
-        // Approval always forces the island open — the user must be able to respond.
-        // Save the focus once, so it comes back when the last request is gone.
-        if focusBeforeApproval == nil { focusBeforeApproval = state.focusId }
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.72)) { state.focusId = head.pillId }
+        // The chat's own requests have no pill to focus: the card opens over the chat.
+        if head.pillId != Self.brainPillId {
+            state.updateTask(id: head.pillId, state: .approval)
+            // Approval always forces the island open — the user must be able to respond.
+            // Save the focus once, so it comes back when the last request is gone.
+            if focusBeforeApproval == nil { focusBeforeApproval = state.focusId }
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.72)) { state.focusId = head.pillId }
+        }
         expandIfNeeded(to: .approval)
     }
 
@@ -151,7 +156,7 @@ final class HookServer: @unchecked Sendable {
         }
 
         let state = AppState.shared
-        if !approvals.hasEntries(forPill: entry.pillId) {
+        if entry.pillId != Self.brainPillId, !approvals.hasEntries(forPill: entry.pillId) {
             state.updateTask(id: entry.pillId, state: .working)
             clearPillBadge(id: entry.pillId)
         }
@@ -174,10 +179,16 @@ final class HookServer: @unchecked Sendable {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                 NotificationCenter.default.post(name: .islandCollapse, object: nil)
             }
+        } else if entry.pillId == Self.brainPillId {
+            state.view = .prompt   // back to the chat that asked
         } else {
             state.view = state.tasks.isEmpty ? .empty : .overview
         }
     }
+
+    /// Approvals of Coucou's own Claude Code chat are filed under this id. It is no
+    /// pill's id, so a brain request never changes the state of a pill.
+    static let brainPillId = "coucou_brain_chat"
 
     // MARK: - Question fd helpers
 
@@ -394,6 +405,26 @@ final class HookServer: @unchecked Sendable {
             return
         }
 
+        #if !APPSTORE
+        // Voice tools for the Claude Code voice brain (coucou-mcp.py): answered once the
+        // tool has run on the main actor.
+        if coucouKind == "mcp_voice" {
+            guard payload["token"] as? String == CoucouMCP.token else {
+                sendLine(fd: fd, text: CoucouMCP.json(CoucouMCP.callResult(text: "Not a Coucou voice session.", isError: true)))
+                close(fd)
+                return
+            }
+            Task { @MainActor in
+                let reply = await ClaudeVoiceBrain.shared.handleMCP(payload)
+                Task.detached { [weak self] in
+                    self?.sendLine(fd: fd, text: reply)
+                    close(fd)
+                }
+            }
+            return
+        }
+        #endif
+
         // AskUserQuestion via --ask PreToolUse hook — hold fd open like PermissionRequest
         if coucouKind == "ask_user_question" {
             let toolInput = payload["tool_input"] as? [String: Any] ?? [:]
@@ -435,6 +466,20 @@ final class HookServer: @unchecked Sendable {
         let cwd = payload["cwd"] as? String ?? ""
         let rawName = URL(fileURLWithPath: cwd).lastPathComponent
         let projectName = aliasProjectName(rawName.isEmpty ? "Session" : rawName)
+
+        #if !APPSTORE
+        // Coucou's own Claude Code chat shows its progress in the chat itself, so its
+        // events never drive a pill. They only settle a permission card made obsolete.
+        if payload["coucou_brain"] as? Bool == true {
+            let eventTool = payload["tool_name"] as? String ?? ""
+            let eventKey = Self.approvalInputKey(payload["tool_input"] as? [String: Any] ?? [:])
+            for entry in approvals.resolved(byEvent: name, sessionId: sessionId, pillId: Self.brainPillId,
+                                            tool: eventTool, inputKey: eventKey) {
+                removeApproval(id: entry.id)
+            }
+            return
+        }
+        #endif
 
         // Determine which pill this event belongs to.
         // coucou_agent must be lowercase, digits and hyphens, ≤ 24 chars.
@@ -811,11 +856,15 @@ final class HookServer: @unchecked Sendable {
         let isHermesRequest  = rawAgent == "hermes"
             && UserDefaults.standard.bool(forKey: "hermesApprovalsEnabled")
             && (payload["coucou_has_transport"] as? Bool == true)
+        // A tool call of Coucou's own Claude Code chat: headless, so the notch is the
+        // only place it can be approved (no answer = the tool is denied).
+        let isBrainRequest   = payload["coucou_brain"] as? Bool == true
         #else
         let isCodexRequest   = false
         let isCopilotRequest = false
         let isMuseRequest    = false
         let isHermesRequest  = false
+        let isBrainRequest   = false
         #endif
         if !isCodexRequest && !isCopilotRequest && !isMuseRequest && !isHermesRequest && Self.validateAgent(rawAgent) != nil {
             Task.detached { [weak self] in
@@ -827,7 +876,9 @@ final class HookServer: @unchecked Sendable {
 
         // Determine which workspace pill owns the request.
         let pillId: String
-        if isCodexRequest {
+        if isBrainRequest {
+            pillId = Self.brainPillId
+        } else if isCodexRequest {
             pillId = "agent_codex"
         } else if isCopilotRequest {
             pillId = "agent_copilot"
@@ -844,7 +895,7 @@ final class HookServer: @unchecked Sendable {
         let terminalHost = isCursorEditor || isVSCodeEditor ? nil
             : ClaudeHost.terminal(termProgram: termProgram, bundleId: bundleId)
         let isTerminal = terminalHost != nil && ClaudeHost.terminalCardsEnabled
-        guard isCodexRequest || isCopilotRequest || isMuseRequest || isHermesRequest || isCursorEditor || isVSCodeEditor || isTerminal else {
+        guard isBrainRequest || isCodexRequest || isCopilotRequest || isMuseRequest || isHermesRequest || isCursorEditor || isVSCodeEditor || isTerminal else {
             Task.detached { [weak self] in
                 self?.sendLine(fd: fd, text: #"{"permissionDecision":"ask"}"#)
                 close(fd)
@@ -868,7 +919,11 @@ final class HookServer: @unchecked Sendable {
             return
         }
 
-        let command = toolInput["command"] as? String ?? tool
+        // What the card shows: the command, else the URL or file the tool would touch.
+        let command = toolInput["command"] as? String
+            ?? toolInput["url"] as? String
+            ?? toolInput["file_path"] as? String
+            ?? tool
 
         // Several requests can wait at once (several sessions or agents): they queue, the
         // card shows the oldest. Past the cap, the newest goes back to its own terminal.
@@ -884,14 +939,15 @@ final class HookServer: @unchecked Sendable {
             }
             return
         }
-        activeSessionId = sessionId
-
-        upsertTask(pill: pillId,
-                   display: PillSessionRegistry.Display(session: sessionId, projectName: projectName,
-                                                        cwd: cwd, hostApp: terminalHost?.bundleId,
-                                                        bundleId: bundleId),
-                   working: true, externalAgent: nil)
-        state.updateTask(id: pillId, state: .approval)
+        if !isBrainRequest {
+            activeSessionId = sessionId
+            upsertTask(pill: pillId,
+                       display: PillSessionRegistry.Display(session: sessionId, projectName: projectName,
+                                                            cwd: cwd, hostApp: terminalHost?.bundleId,
+                                                            bundleId: bundleId),
+                       working: true, externalAgent: nil)
+            state.updateTask(id: pillId, state: .approval)
+        }
         SoundEngine.shared.play("approval")
 
         // Monitor fd: if the agent closes the connection (answered in its own UI), drop the
@@ -1323,6 +1379,8 @@ final class HookServer: @unchecked Sendable {
         let pyURL = wrapperURL.deletingLastPathComponent().appendingPathComponent("nb-hook.py")
         try? nbHookPythonGitHub.write(to: pyURL, atomically: true, encoding: .utf8)
         _ = try? FileManager.default.setAttributes([.posixPermissions: 0o755 as NSNumber], ofItemAtPath: pyURL.path)
+        // coucou-mcp.py: the voice tools for the Claude Code voice brain
+        CoucouMCP.install()
         #endif
     }
 
@@ -3397,6 +3455,9 @@ def main():
     # route them to the Claude Desktop pill instead of dropping them (no VS Code terminal).
     if not payload.get('coucou_agent') and os.environ.get('CLAUDE_CODE_ENTRYPOINT') == 'claude-desktop':
         payload['coucou_agent'] = 'claude-desktop'
+    # Runs Coucou starts itself for the Claude Code chat (see ClaudeCodeChat.swift).
+    if os.environ.get('COUCOU_BRAIN') == '1':
+        payload['coucou_brain'] = True
 
     # Enrich with terminal context
     env = os.environ
@@ -3704,6 +3765,9 @@ def main():
     # route them to the Claude Desktop pill instead of dropping them (no VS Code terminal).
     if not payload.get('coucou_agent') and os.environ.get('CLAUDE_CODE_ENTRYPOINT') == 'claude-desktop':
         payload['coucou_agent'] = 'claude-desktop'
+    # Runs Coucou starts itself for the Claude Code chat (see ClaudeCodeChat.swift).
+    if os.environ.get('COUCOU_BRAIN') == '1':
+        payload['coucou_brain'] = True
 
     env = os.environ
     payload.setdefault('term_program', env.get('TERM_PROGRAM', ''))

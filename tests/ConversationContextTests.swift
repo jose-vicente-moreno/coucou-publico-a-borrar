@@ -12,6 +12,7 @@ enum ConversationContextTests {
         testReverse_pillAdd()
         testReverse_musicPause()
         testUnknownNotStored()
+        testSpanish()
         print("ConversationContextTests: all cases passed")
     }
 
@@ -63,6 +64,33 @@ enum ConversationContextTests {
         let r = ctx.resolveRelative("undo", pills: pills)
         precondition(r == .musicPlay(target: nil),
             "undo after musicPause → musicPlay")
+    }
+
+    static func testSpanish() {
+        var ctx = ConversationContext()
+        ctx.update(.pillAdd(id: "integration_github"))
+        precondition(ctx.resolveRelative("y Vercel también", pills: pills) == .pillAdd(id: "integration_vercel"),
+            "y X también → pillAdd with X")
+        precondition(ctx.resolveRelative("también Stripe", pills: pills) == .pillAdd(id: "integration_stripe"),
+            "también X → pillAdd with X")
+        precondition(ctx.resolveRelative("Notion también", pills: pills) == .pillAdd(id: "integration_notion"),
+            "X también → pillAdd with X")
+        precondition(ctx.resolveRelative("añade también Stripe", pills: pills) == .pillAdd(id: "integration_stripe"),
+            "añade también X → pillAdd with X")
+        precondition(ctx.resolveRelative("deshazlo", pills: pills) == .pillRemove(id: "integration_github"),
+            "deshazlo after pillAdd → pillRemove")
+        precondition(ctx.resolveRelative("cancela", pills: pills) == nil,
+            "bare cancela is an end phrase, not an undo")
+        var rm = ConversationContext()
+        rm.update(.pillRemove(id: "integration_github"))
+        precondition(rm.resolveRelative("lo mismo para Stripe", pills: pills) == .pillRemove(id: "integration_stripe"),
+            "lo mismo para X → pillRemove with X")
+        precondition(rm.resolveRelative("vuelve a ponerla", pills: pills) == .pillAdd(id: "integration_github"),
+            "vuelve a ponerla after pillRemove → pillAdd")
+        var music = ConversationContext()
+        music.update(.musicPause)
+        precondition(music.resolveRelative("anula eso", pills: pills) == .musicPlay(target: nil),
+            "anula eso after musicPause → musicPlay")
     }
 
     static func testUnknownNotStored() {

@@ -27,6 +27,8 @@ enum EntityResolverTests {
         check("Google AI exact",   resolve("Google AI"),    "ai_google")
 
         // ── Aliases ───────────────────────────────────────────────────────────
+        check("música alias (es)", resolve("música"),       "integration_music")
+        check("espotifai alias (es)", resolve("espotifai"), "integration_spotify")
         check("claude alias",      resolve("claude"),       "integration_claude")
         check("claude code alias", resolve("claude code"),  "integration_claude")
         check("gemini alias",      resolve("gemini"),       "agent_gemini")

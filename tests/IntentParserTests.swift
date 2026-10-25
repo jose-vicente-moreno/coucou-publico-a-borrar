@@ -336,6 +336,123 @@ enum IntentParserTests {
         check("stop la musique",             parse("stop la musique"),         .musicPause)
         check("stop la chanson",             parse("stop la chanson"),         .musicPause)
 
+        // ── Spanish ──────────────────────────────────────────────────────────
+        // Music
+        check("es pausa",                    parse("pausa"),                   .musicPause)
+        check("es para (alone)",             parse("para"),                    .musicPause)
+        check("es para la música",           parse("para la música"),          .musicPause)
+        check("es detén la música",          parse("detén la música"),         .musicPause)
+        check("es pon en pausa",             parse("pon en pausa"),            .musicPause)
+        check("es pon música",               parse("pon música"),              .musicPlay(target: nil))
+        check("es pon un poco de música",    parse("pon un poco de música"),   .musicPlay(target: nil))
+        check("es reproduce música",         parse("reproduce música"),        .musicPlay(target: nil))
+        check("es reanuda",                  parse("reanuda"),                 .musicPlay(target: nil))
+        check("es pon música en Spotify",    parse("pon música en Spotify", pills: pills), .musicPlay(target: .spotify))
+        check("es abre Spotify → app",       parse("abre Spotify", pills: pills), .openApp(name: "Spotify"))
+        check("es siguiente",                parse("siguiente"),               .musicNext)
+        check("es canción siguiente",        parse("canción siguiente"),       .musicNext)
+        check("es pasa a la siguiente",      parse("pasa a la siguiente"),     .musicNext)
+        check("es anterior",                 parse("anterior"),                .musicPrevious)
+        check("es vuelve atrás",             parse("vuelve atrás"),            .musicPrevious)
+        check("es sube el volumen",          parse("sube el volumen"),         .musicVolumeUp)
+        check("es sube un poco el volumen",  parse("sube un poco el volumen"), .musicVolumeUp)
+        check("es más alto",                 parse("más alto"),                .musicVolumeUp)
+        check("es baja el volumen",          parse("baja el volumen"),         .musicVolumeDown)
+        check("es más bajo",                 parse("más bajo"),                .musicVolumeDown)
+        check("es volumen al 50",            parse("volumen al 50"),           .musicSetVolume(50))
+        check("es pon el volumen a 30",      parse("pon el volumen a 30"),     .musicSetVolume(30))
+        checkSearch("es pon Daft Punk",      parse("pon Daft Punk", pills: pills), "daft punk")
+        checkSearch("es pon algo de Drake",  parse("pon algo de Drake", pills: pills), "drake")
+        checkSearch("es pon a los Beatles",  parse("pon a los Beatles", pills: pills), "beatles")
+        checkSearch("es quiero escuchar a Drake", parse("quiero escuchar a Drake", pills: pills), "drake")
+        checkSearch("es quiero escuchar algo de Rosalía", parse("quiero escuchar algo de Rosalía", pills: pills), "rosalia")
+        check("es quiero escuchar música",   parse("quiero escuchar música", pills: pills), .musicPlay(target: nil))
+        checkPlaylist("es pon la playlist Workout", parse("pon la playlist Workout", pills: pills), "workout")
+        checkPlaylist("es pon mi playlist Focus",   parse("pon mi playlist Focus", pills: pills), "focus")
+        checkPlaylist("es pon la lista de reproducción Verano",
+                      parse("pon la lista de reproducción Verano", pills: pills), "verano")
+        check("es pon mi playlist (no name)", parse("pon mi playlist", pills: pills), .musicPlayPlaylist(name: ""))
+        // Pills
+        check("es añade GitHub",             parse("añade GitHub", pills: pills),       .pillAdd(id: "integration_github"))
+        check("es agrega Vercel",            parse("agrega Vercel", pills: pills),      .pillAdd(id: "integration_vercel"))
+        check("es activa Notion",            parse("activa Notion", pills: pills),      .pillAdd(id: "integration_notion"))
+        check("es muestra Resend",           parse("muestra Resend", pills: pills),     .pillAdd(id: "integration_resend"))
+        check("es pon Stripe",               parse("pon Stripe", pills: pills),         .pillAdd(id: "integration_stripe"))
+        check("es pon la píldora Gemini",    parse("pon la píldora Gemini", pills: pills), .pillAdd(id: "agent_gemini"))
+        check("es activa el GitHub",         parse("activa el GitHub", pills: pills),   .pillAdd(id: "integration_github"))
+        check("es añade GitHub por favor",   parse("añade GitHub por favor", pills: pills), .pillAdd(id: "integration_github"))
+        check("es ¿puedes añadir Stripe?",   parse("¿Puedes añadir Stripe?", pills: pills), .pillAdd(id: "integration_stripe"))
+        check("es me pones Notion",          parse("me pones Notion", pills: pills),    .pillAdd(id: "integration_notion"))
+        check("es quiero que añadas Gemini", parse("quiero que añadas la píldora Gemini", pills: pills), .pillAdd(id: "agent_gemini"))
+        check("es vale, añade Notion",       parse("vale, añade Notion", pills: pills), .pillAdd(id: "integration_notion"))
+        check("es añade Vercel y Stripe",    parse("añade Vercel y Stripe", pills: pills),
+              .pillAddMultiple(ids: ["integration_vercel", "integration_stripe"]))
+        check("es quita GitHub",             parse("quita GitHub", pills: pills),       .pillRemove(id: "integration_github"))
+        check("es quítame Notion",           parse("quítame Notion", pills: pills),     .pillRemove(id: "integration_notion"))
+        check("es elimina Vercel",           parse("elimina Vercel", pills: pills),     .pillRemove(id: "integration_vercel"))
+        check("es desactiva Notion",         parse("desactiva Notion", pills: pills),   .pillRemove(id: "integration_notion"))
+        check("es oculta Resend",            parse("oculta Resend", pills: pills),      .pillRemove(id: "integration_resend"))
+        check("es ya no necesito Stripe",    parse("ya no necesito Stripe", pills: pills), .pillRemove(id: "integration_stripe"))
+        check("es quita Stripe y Notion",    parse("quita Stripe y Notion", pills: pills),
+              .pillRemoveMultiple(ids: ["integration_stripe", "integration_notion"]))
+        check("es añade Notion en las píldoras", parse("añade Notion en las píldoras", pills: pills), .pillAdd(id: "integration_notion"))
+        // Main pill
+        check("es cambia a Cursor",          parse("cambia a Cursor", pills: pills),    .pillSetMain(id: "agent_cursor"))
+        check("es usa VS Code",              parse("usa VS Code", pills: pills),        .pillSetMain(id: "integration_claude"))
+        check("es pon Cursor",               parse("pon Cursor", pills: pills),         .pillSetMain(id: "agent_cursor"))
+        check("es pon Cursor en principal",  parse("pon Cursor en principal", pills: pills), .pillSetMain(id: "agent_cursor"))
+        check("es cambia la píldora principal a Codex",
+              parse("cambia la píldora principal a Codex", pills: pills), .pillSetMain(id: "agent_codex"))
+        check("es la píldora principal es Cursor",
+              parse("la píldora principal es Cursor", pills: pills), .pillSetMain(id: "agent_cursor"))
+        check("es Cursor como píldora principal",
+              parse("Cursor como píldora principal", pills: pills), .pillSetMain(id: "agent_cursor"))
+        // Replace / only
+        check("es reemplaza n8n por GitHub", parse("reemplaza n8n por GitHub", pills: pills),
+              .pillReplace(old: "integration_n8n", new: "integration_github"))
+        check("es cambia n8n por Vercel",    parse("cambia n8n por Vercel", pills: pills),
+              .pillReplace(old: "integration_n8n", new: "integration_vercel"))
+        check("es pon GitHub en lugar de Notion", parse("pon GitHub en lugar de Notion", pills: pills),
+              .pillReplace(old: "integration_notion", new: "integration_github"))
+        check("es GitHub en vez de Notion",  parse("GitHub en vez de Notion", pills: pills),
+              .pillReplace(old: "integration_notion", new: "integration_github"))
+        check("es deja solo GitHub y Vercel", parse("deja solo GitHub y Vercel", pills: pills),
+              .pillOnly(["integration_github", "integration_vercel"]))
+        check("es pon Stripe en su lugar",   parse("pon Stripe en su lugar", pills: pills), .pillAdd(id: "integration_stripe"))
+        // Multi-action
+        checkMultiAction("es añade Stripe y quita Vercel",
+                         parseMulti("añade Stripe y quita Vercel"),
+                         [.pillAdd(id: "integration_stripe"), .pillRemove(id: "integration_vercel")])
+        checkMultiAction("es quita GitHub, pon Notion",
+                         parseMulti("quita GitHub, pon Notion"),
+                         [.pillRemove(id: "integration_github"), .pillAdd(id: "integration_notion")])
+        checkMultiAction("es añade Stripe quita Vercel",
+                         parseMulti("añade Stripe quita Vercel"),
+                         [.pillAdd(id: "integration_stripe"), .pillRemove(id: "integration_vercel")])
+        checkMultiAction("es pausa y luego añade Notion",
+                         parseMulti("pausa y luego añade Notion"),
+                         [.musicPause, .pillAdd(id: "integration_notion")])
+        checkMultiAction("es quita la píldora GitHub y pon Stripe en su lugar",
+                         parseMulti("quita la píldora GitHub y pon Stripe en su lugar"),
+                         [.pillRemove(id: "integration_github"), .pillAdd(id: "integration_stripe")])
+        checkNilMultiAction("es añade Notion y Stripe", parseMulti("añade Notion y Stripe"))
+        checkNilMultiAction("es pon Simon y Garfunkel", parseMulti("pon Simon y Garfunkel"))
+        // False positives: Spanish words that also mean something else
+        checkSearch("es para = for, not stop", parse("pon música para trabajar", pills: pills), "musica para trabajar")
+        check("es unknown sentence",         parse("no sé qué decir", pills: pills), .unknown)
+        checkSearch("en keeps Al Green",     parse("play Al Green", pills: pills), "al green")
+        checkSearch("fr keeps Los Angeles",  parse("joue Los Angeles de Gainsbourg", pills: pills), "los angeles de gainsbourg")
+        checkSearch("en keeps El Mariachi",  parse("play El Mariachi", pills: pills), "el mariachi")
+        checkSearch("es reproduce Despacito", parse("reproduce Despacito", pills: pills), "despacito")
+        check("en reproduce is not a verb mid-sentence", parse("how do I reproduce this", pills: pills), .unknown)
+        check("es usa Cursor",               parse("usa Cursor", pills: pills), .pillSetMain(id: "agent_cursor"))
+        checkSearch("en the USA anthem",     parse("play the USA anthem", pills: pills), "usa anthem")
+        check("es la anterior",              parse("pon la anterior"),          .musicPrevious)
+        check("en anterior is not previous", parse("what is the anterior cruciate ligament", pills: pills), .unknown)
+        check("fr unchanged: mets en pause", parse("mets en pause"),           .musicPause)
+        check("fr unchanged: mets Cursor en principal",
+              parse("mets Cursor en principal", pills: pills), .pillSetMain(id: "agent_cursor"))
+
         // Summary
         let total = pass + fail
         if fail == 0 { print("\n\(total)/\(total) passed.") }

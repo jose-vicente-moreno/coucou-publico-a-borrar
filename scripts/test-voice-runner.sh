@@ -4,6 +4,7 @@ echo "Running VoiceActionRunner tests…"
 swiftc -o /tmp/voice-runner-tests \
   tests/VoiceTestStubs.swift \
   tests/PillFixture.swift \
+  NotchBuddy/Sources/App/Voice/VoiceLang.swift \
   NotchBuddy/Sources/App/Voice/VoiceIntent.swift \
   NotchBuddy/Sources/App/Voice/IntentParser.swift \
   NotchBuddy/Sources/App/Voice/VoiceQuery.swift \

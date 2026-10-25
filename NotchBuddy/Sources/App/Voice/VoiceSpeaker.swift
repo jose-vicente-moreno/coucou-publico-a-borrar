@@ -5,10 +5,11 @@ import AVFoundation
 //
 // Gives Coucou a voice, sentence by sentence:
 //   • macOS voices (AVSpeechSynthesizer), best installed voice for the language;
-//   • ElevenLabs (Settings → Voice, the user's own API key), female or male.
-//     Each queued sentence starts downloading right away, so the next one is usually
-//     ready when the previous one ends. Any ElevenLabs failure falls back to the Mac
-//     voice for that sentence: Coucou never goes silent.
+//   • VoiceStudio (Settings → Voice, local open-source voices, no key) or ElevenLabs
+//     (the user's own API key), female or male. Each queued sentence starts its
+//     synthesis right away, so the next one is usually ready when the previous one
+//     ends. Any failure falls back to the Mac voice for that sentence: Coucou never
+//     goes silent.
 // onDidFinish fires ~150 ms after the queue drains. All methods: @MainActor.
 @MainActor
 final class VoiceSpeaker: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegate, @unchecked Sendable {
@@ -23,7 +24,7 @@ final class VoiceSpeaker: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDe
     private struct Item {
         let text: String
         let locale: Locale?
-        let audio: Task<Data?, Never>?   // ElevenLabs download, started at enqueue time
+        let audio: Task<Data?, Never>?   // VoiceStudio / ElevenLabs audio, started at enqueue time
     }
     private var queue: [Item] = []
     /// Bumped by stop()/speak(): late callbacks from an older utterance are ignored.
@@ -49,9 +50,14 @@ final class VoiceSpeaker: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDe
     /// Adds a sentence to the queue. Starts playing if nothing is playing.
     func enqueue(_ text: String, locale: Locale?) {
         guard VoiceSettings.speakEnabled else { return }
-        let audio: Task<Data?, Never>? = ElevenLabsTTS.isActive
-            ? Task { await ElevenLabsTTS.shared.audio(for: text) }
-            : nil
+        let audio: Task<Data?, Never>?
+        if VoiceStudioTTS.isActive {
+            audio = Task { await VoiceStudioTTS.shared.audio(for: text, locale: locale) }
+        } else if ElevenLabsTTS.isActive {
+            audio = Task { await ElevenLabsTTS.shared.audio(for: text, locale: locale) }
+        } else {
+            audio = nil
+        }
         queue.append(Item(text: text, locale: locale, audio: audio))
         if !isSpeaking { playNext() }
     }
