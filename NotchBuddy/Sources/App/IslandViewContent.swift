@@ -1724,7 +1724,6 @@ struct ModelPickerView: View {
                         Button {
                             switch state.chatProvider {
                             case .anthropic:  state.claudeModel = model.id
-                            case .claudeCode: state.claudeCodeChatModel = model.id
                             case .google:    state.googleChatModel = model.id
                             case .openai:    state.openAIChatModel = model.id
                             case .ollama:    state.ollamaChatModel = model.id
