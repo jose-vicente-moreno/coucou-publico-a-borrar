@@ -177,6 +177,17 @@ jobs:
             exit 1
           fi
 
+      # The job log gets truncated well before the end, so the only reliable
+      # way to see why a build died is to carry the file out of the runner.
+      - name: Keep the build log when the build fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          retention-days: 7
+          if-no-files-found: warn
+
       - name: Build App Store target (unsigned)
         run: |
           xcodebuild \
