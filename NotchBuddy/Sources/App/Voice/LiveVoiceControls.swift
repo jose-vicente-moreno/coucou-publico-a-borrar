@@ -93,8 +93,10 @@ extension VoiceActionRunner {
         pills = LivePillControl()
         info  = LiveVoiceInfo.shared
         onLanguageSwitch = { lang in
-            VoiceSettings.language = lang          // Settings picker follows (same key)
+            VoiceSettings.voiceLang = lang         // Settings picker follows (same key)
             VoiceBrain.shared.endConversation()    // next session gets the new instructions
+            ElevenLabsTTS.shared.reset()           // voices are picked per language
+            VoiceStudioTTS.shared.reset()
         }
     }
 }

@@ -239,6 +239,10 @@ struct OverviewView: View {
             }
         case "integration_portfolio":
             break   // no global URL; individual holdings open their exchange pages
+        case "integration_brain":
+            #if !APPSTORE
+            BrainActions.openObsidian()
+            #endif
         case "integration_vercel":
             NSWorkspace.shared.open(URL(string: "https://vercel.com/dashboard")!)
         case "integration_github":
@@ -343,6 +347,11 @@ struct ApprovalView: View {
 
     /// The pill, named after the session that asks (several sessions can share a pill).
     private var asker: AgentTask? {
+        if approval?.pillId == HookServer.brainPillId {
+            // Mochi's own brain chat: no pill behind it.
+            return AgentTask(id: HookServer.brainPillId, name: "Mochi · \(approval?.projectName ?? "brain")",
+                             color: ChatProvider.claudeCode.accentHex, state: .approval, steps: [], source: .claudeCode)
+        }
         guard var task = state.focusTask else { return nil }
         if let project = approval?.projectName, !project.isEmpty { task.name = project }
         return task
@@ -374,9 +383,12 @@ struct ApprovalView: View {
                         HookServer.shared.sendApprovalDecision("allow", for: shownId)
                     }
                     // Codex, Copilot CLI and Muse Code do not support updatedPermissions
+                    // Nor the brain chat: "Always" would write a lasting allow rule into the
+                    // brain's settings for a request a note or a web page may have triggered.
                     let hideAlways = approval?.pillId == "agent_codex"
                         || approval?.pillId == "agent_copilot"
                         || approval?.pillId == "agent_muse"
+                        || approval?.pillId == HookServer.brainPillId
                     if !hideAlways {
                         SecondaryButton("Always") {
                             HookServer.shared.sendApprovalDecision("always", for: shownId)
@@ -1077,6 +1089,11 @@ struct ChooseView: View {
                 HStack(spacing: 8) {
                     PrimaryButton("Ask a question") { state.view = .prompt }
                     SecondaryButton("Send by email") { state.view = .mail }
+                    #if !APPSTORE
+                    if BrainController.shared.vaultURL != nil {
+                        SecondaryButton("Save to brain") { BrainActions.saveDroppedFile() }
+                    }
+                    #endif
                 }
             }
             .padding(.leading, 98)
@@ -1347,6 +1364,7 @@ struct PromptView: View {
     @State private var text: String = ""
     @FocusState private var focused: Bool
     @State private var showModelPicker = false
+    @State private var showWaitingSessions = false
 
     #if !APPSTORE
     @State private var dictation = MacDictation()
@@ -1403,6 +1421,34 @@ struct PromptView: View {
                 }
 
                 HStack(spacing: 0) {
+                    #if !APPSTORE
+                    // The agents that have stopped and are waiting on an answer.
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                            showWaitingSessions.toggle()
+                        }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "pause.circle")
+                                .font(.system(size: 9))
+                                .foregroundColor(Color(hex: "#7B8089"))
+                            Text(state.waitingSessions.isEmpty
+                                 ? String(localized: "Agents")
+                                 : "\(state.waitingSessions.count)")
+                                .font(.system(size: 10.5, weight: .medium))
+                                .foregroundColor(Color(hex: "#7B8089"))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.white.opacity(0.06))
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .popover(isPresented: $showWaitingSessions, arrowEdge: .bottom) {
+                        WaitingSessionsView(state: state, isPresented: $showWaitingSessions)
+                            .frame(width: 340)
+                    }
+                    #endif
                     Spacer()
                     Button {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
@@ -1481,7 +1527,18 @@ struct PromptView: View {
             .padding(.bottom, 14)
         }
         .padding(.bottom, 10)
-        .onAppear { focused = true }
+        .onAppear {
+            focused = true
+            #if !APPSTORE
+            if let draft = BrainActions.takeDraft() { text = draft }
+            #endif
+        }
+        #if !APPSTORE
+        // The chat already on screen (a draft action from the Brain card while it is open).
+        .onReceive(NotificationCenter.default.publisher(for: .islandChatDraft)) { note in
+            if let draft = note.object as? String, BrainActions.takeDraft() != nil { text = draft }
+        }
+        #endif
         .onChange(of: state.view) { _, view in
             if view == .prompt {
                 state.fetchModelsIfNeeded(for: state.chatProvider)
@@ -1518,6 +1575,10 @@ struct PromptView: View {
         #endif
         let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
+        #if !APPSTORE
+        // One Claude Code turn at a time: keep the text until the answer is in.
+        if state.chatProvider == .claudeCode, ClaudeCodeChat.shared.isBusy { return }
+        #endif
         text = ""
         focused = false
         state.chatHistory.append(ChatMessage(role: .user, content: query))
@@ -1564,12 +1625,22 @@ struct ModelPickerView: View {
     @ObservedObject var state: AppState
     @Binding var isPresented: Bool
 
+    /// The `claude` CLI is on this Mac (the GitHub build only: no subprocess in the sandbox).
+    static var claudeCodeInstalled: Bool {
+        #if !APPSTORE
+        ClaudeCodeChat.shared.isAvailable
+        #else
+        false
+        #endif
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Provider chips — wrap; hide local providers when not connected and not already active
             let visibleProviders = ChatProvider.allCases.filter { p in
                 if p == .ollama   { return !AppState.shared.ollamaServerURL.isEmpty   || state.chatProvider == .ollama }
                 if p == .lmstudio { return !AppState.shared.lmstudioServerURL.isEmpty || state.chatProvider == .lmstudio }
+                if p == .claudeCode { return Self.claudeCodeInstalled || state.chatProvider == .claudeCode }
                 return true
             }
             ChipFlowLayout(spacing: 6) {
@@ -1652,7 +1723,7 @@ struct ModelPickerView: View {
                     ForEach(models, id: \.id) { model in
                         Button {
                             switch state.chatProvider {
-                            case .anthropic: state.claudeModel = model.id
+                            case .anthropic:  state.claudeModel = model.id
                             case .google:    state.googleChatModel = model.id
                             case .openai:    state.openAIChatModel = model.id
                             case .ollama:    state.ollamaChatModel = model.id
@@ -1660,6 +1731,7 @@ struct ModelPickerView: View {
                             case .deepseek:  state.deepseekChatModel = model.id
                             case .qwen:      state.qwenChatModel = model.id
                             case .moonshot:  state.moonshotChatModel = model.id
+                            case .claudeCode: state.claudeCodeModel = model.id
                             }
                             isPresented = false
                             SoundEngine.shared.play("blip")
@@ -1940,11 +2012,18 @@ struct IntegrationCardView: View {
             return true  // public market data: no key, nothing to set up
         case "integration_portfolio":
             return PortfolioSettings.hasAnyAccount
+        case "integration_brain":
+            #if !APPSTORE
+            return BrainController.shared.vaultURL != nil  // brain folder set and there
+            #else
+            return false
+            #endif
         case "ai_anthropic":  return KeychainStore.shared.get("anthropic-api-key") != nil
         case "ai_google":     return KeychainStore.shared.get("google-api-key")    != nil
         case "ai_openai":     return KeychainStore.shared.get("openai-api-key")    != nil
         case "ai_ollama":     return !AppState.shared.ollamaServerURL.isEmpty
         case "ai_lmstudio":   return !AppState.shared.lmstudioServerURL.isEmpty
+        case "ai_claudecode": return ModelPickerView.claudeCodeInstalled
         case "integration_resend":  return KeychainStore.shared.get("resend-api-key") != nil
         case "integration_n8n":     return KeychainStore.shared.get("n8n-api-key")    != nil
         case "integration_vercel":  return KeychainStore.shared.get("vercel-token")   != nil
@@ -2110,6 +2189,9 @@ struct IntegrationCardView: View {
                     let model = provider == .ollama ? appState.ollamaChatModel : appState.lmstudioChatModel
                     return String(localized: "Connected · \(model)")
                 }
+                if provider == .claudeCode {
+                    return String(localized: "Your Claude login · \(appState.claudeCodeModel)")
+                }
                 let model: String
                 switch task.id {
                 case "ai_anthropic": model = appState.claudeModel
@@ -2124,6 +2206,7 @@ struct IntegrationCardView: View {
             if isHooks { return String(localized: "Hooks not installed") }
             if isAI {
                 let provider = ChatProvider(pillID: task.id)!
+                if provider == .claudeCode { return String(localized: "Claude Code not found") }
                 return provider.isLocal ? String(localized: "Not connected") : String(localized: "Key not configured")
             }
             return String(localized: "Key not configured")
@@ -2195,6 +2278,12 @@ struct IntegrationCardView: View {
         } else if task.id == "integration_portfolio" {
             PortfolioCardView()
                 .transition(.opacity)
+        } else if task.id == "integration_brain" {
+            // Its own card in every state (no folder yet, counts).
+            #if !APPSTORE
+            BrainCardView()
+                .transition(.opacity)
+            #endif
         } else if mailHasData {
             #if !APPSTORE
             MailCardView()

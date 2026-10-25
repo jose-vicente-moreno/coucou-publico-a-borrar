@@ -29,6 +29,9 @@ enum TurnEndPolicy {
     static let conversationEndPhrases: Set<String> = [
         "merci", "c est bon", "c'est bon", "that s all", "that's all", "stop",
         "laisse tomber", "annule", "annuler", "cancel", "never mind", "bye", "au revoir",
+        // Spanish (accents kept by WakePhrase.normalise: both spellings)
+        "gracias", "eso es todo", "ya está", "ya esta", "nada más", "nada mas", "déjalo", "dejalo",
+        "olvídalo", "olvidalo", "cancela", "cancelar", "adiós", "adios", "hasta luego",
     ]
 
     // Words that suggest the utterance is mid-thought and should get extra silence.
@@ -37,14 +40,19 @@ enum TurnEndPolicy {
         "et", "puis", "ensuite", "mais", "ou",
         // EN conjunctions
         "and", "then", "but", "or",
+        // ES conjunctions
+        "y", "o", "pero", "luego", "despues",
         // Thinking out loud ("euh…", "hmm", "genre")
         "euh", "heu", "hum", "hmm", "mmm", "bah", "ben", "bon", "genre", "enfin", "attends",
         "um", "uh", "uhm", "erm", "er", "like", "well", "wait",
+        "eh", "em", "este", "pues", "bueno", "espera",
         // FR articles / prepositions
         "de", "du", "le", "la", "les", "des", "un", "une",
         "a", "au", "aux", "sur", "dans", "avec", "pour",
         // EN articles / prepositions
         "the", "to", "on", "of", "in", "at", "with", "for",
+        // ES articles / prepositions ("para" left out: alone it is "stop")
+        "el", "los", "las", "una", "del", "al", "en", "con", "por",
         // FR bare action verbs (imperative without object)
         "ajoute", "enleve", "retire", "supprime", "desactive", "active",
         "mets", "met", "lance", "joue", "balance", "demarre",
@@ -52,6 +60,9 @@ enum TurnEndPolicy {
         // EN bare action verbs
         "add", "remove", "disable", "enable", "play", "start",
         "increase", "decrease", "set",
+        // ES bare action verbs
+        "anade", "agrega", "quita", "elimina", "borra", "desactiva", "activa",
+        "pon", "sube", "baja",
     ]
 }
 #endif

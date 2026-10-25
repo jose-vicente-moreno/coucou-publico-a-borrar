@@ -69,7 +69,10 @@ enum PillCatalog {
     // All declared pills in display order.
     static let all: [PillDefinition] = [
         // ── Where you code ───────────────────────────────────────────────────
-        .init(id: "integration_claude",  name: "VS Code",     color: "#F5F6F8",
+        // Named after the agent, not the editor: sessions reach this pill from a
+        // terminal or a background job just as often as from VS Code, and the id
+        // (a stable contract value) is unchanged.
+        .init(id: "integration_claude",  name: "Claude Code", color: "#F5F6F8",
               category: .workspace, subtitle: "Integration",  source: .claudeCode),
         .init(id: "agent_cursor",        name: "Cursor",      color: "#C0C4CC",
               category: .workspace, subtitle: "Integration",  source: .agent),
@@ -105,6 +108,8 @@ enum PillCatalog {
               category: .ai,        subtitle: "Chat",         source: .n8n),
         .init(id: "ai_lmstudio",         name: "LM Studio",   color: ChatProvider.lmstudio.accentHex,
               category: .ai,        subtitle: "Chat",         source: .n8n),
+        .init(id: "ai_claudecode",       name: "Claude Code", color: ChatProvider.claudeCode.accentHex,
+              category: .ai,        subtitle: "Chat",         source: .n8n,    githubOnly: true),
         // ── Services ─────────────────────────────────────────────────────────
         .init(id: "integration_resend",  name: "Resend",      color: "#22C55E",
               category: .service,   subtitle: "Integration",  source: .n8n),
@@ -130,6 +135,9 @@ enum PillCatalog {
               category: .service,   subtitle: "Integration",  source: .n8n),
         .init(id: "integration_portfolio", name: "Portfolio",   color: "#FFD700",
               category: .service,   subtitle: "Integration",  source: .n8n),
+        // The Claude Code chat's vault ("brain"): its inbox, sessions and learnings.
+        .init(id: "integration_brain",   name: "Brain",       color: "#8B5CF6",
+              category: .service,   subtitle: "Integration",  source: .n8n, githubOnly: true),
     ]
 
     /// Pills available in the current build target.

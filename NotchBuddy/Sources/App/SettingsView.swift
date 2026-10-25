@@ -342,6 +342,8 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Toggle("Open on hover", isOn: $state.openOnHover)
                     .help("Hovering the island opens it; it folds again shortly after the pointer leaves. Click inside to keep it open.")
+                Toggle(String(localized: "alerts.all-pills"), isOn: $state.alertsFromAllPills)
+                    .help(String(localized: "alerts.all-pills.help"))
                 HStack(spacing: 8) {
                     Text("Close after")
                     TextField("60", value: $state.autoCloseInterval, format: .number)
@@ -1028,6 +1030,10 @@ struct SettingsView: View {
     // MARK: - Chat section
 
     @ViewBuilder private var chatSection: some View {
+        #if !APPSTORE
+        ClaudeCodeSettingsBox(state: state)
+        #endif
+
         GroupBox(String(localized: "chat.anthropic-api.title")) {
             VStack(alignment: .leading, spacing: 8) {
                 SecureField(String(localized: "chat.api-key.claude"), text: $apiKey)
@@ -1379,15 +1385,18 @@ struct SettingsView: View {
     @AppStorage("voiceElevenGender")   private var elevenGender: String = "female"
     @AppStorage("voicePitchFemale")    private var pitchFemale: Double = VoiceSettings.defaultPitchFemale
     @AppStorage("voicePitchMale")      private var pitchMale: Double = VoiceSettings.defaultPitchMale
-    @State private var webKeySaved: Bool = !(KeychainStore.shared.get("anthropic-api-key") ?? "").isEmpty
+    /// Claude can answer by voice: Claude Code login or Anthropic key.
+    @State private var webKeySaved: Bool = ClaudeAccess.voiceAvailable
+    @AppStorage("voiceClaudeCodeBrain") private var claudeCodeVoice: Bool = false
     @State private var elevenKeyDraft: String = ""
     @State private var elevenKeySaved: Bool = KeychainStore.shared.get(ElevenLabsTTS.keyName) != nil
 
     private func speakVoiceSample() {
-        let en = voiceLanguage != "fr"
-        VoiceSpeaker.shared.speak(en ? "Hi, I'm Coucou. Say OK Coucou whenever you need me."
-                                     : "Salut, c'est Coucou. Dis OK Coucou quand tu as besoin de moi.",
-                                  locale: Locale(identifier: en ? "en-US" : "fr-FR"))
+        let lang = VoiceLang(code: voiceLanguage)
+        VoiceSpeaker.shared.speak(lang.t("Salut, c'est Coucou. Dis OK Coucou quand tu as besoin de moi.",
+                                         "Hi, I'm Coucou. Say OK Coucou whenever you need me.",
+                                         "Hola, soy Coucou. Di OK Coucou cuando me necesites."),
+                                  locale: lang.locale)
     }
 
     @ViewBuilder private var voiceSection: some View {
@@ -1410,7 +1419,18 @@ struct SettingsView: View {
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .onAppear { webKeySaved = !(KeychainStore.shared.get("anthropic-api-key") ?? "").isEmpty }
+                .onAppear { webKeySaved = ClaudeAccess.voiceAvailable }
+
+                #if !APPSTORE
+                if ClaudeAccess.claudeCodeInstalled && !ClaudeAccess.hasAPIKey {
+                    Toggle("Answer with Claude Code (your Claude login)", isOn: $claudeCodeVoice)
+                        .onChange(of: claudeCodeVoice) { _, _ in webKeySaved = ClaudeAccess.voiceAvailable }
+                    Text("What you say after « OK Coucou » goes to Anthropic through your own `claude` command. Off: Coucou understands the phrases it knows, on the Mac.")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                #endif
 
                 if voiceEngine.recognizerUnavailable {
                     HStack(spacing: 6) {
@@ -1458,23 +1478,27 @@ struct SettingsView: View {
                         .frame(width: 130, alignment: .leading)
                     Picker(String(localized: "voice.listen-language"), selection: $listenLanguage) {
                         Text(String(localized: "voice.lang-auto")).tag("auto")
-                        Text(verbatim: "Français").tag("fr")
-                        Text(verbatim: "English").tag("en")
+                        ForEach(VoiceLang.allCases, id: \.self) { lang in
+                            Text(verbatim: lang.nativeName).tag(lang.rawValue)
+                        }
                     }
                     .labelsHidden()
                     .pickerStyle(.segmented)
-                    .frame(maxWidth: 260)
+                    .frame(maxWidth: 340)
+                    // Recognition restarts in the new language.
+                    .onChange(of: listenLanguage) { _, _ in voiceEngine.reloadLanguage() }
                 }
                 HStack(spacing: 10) {
                     Text(String(localized: "voice.language"))
                         .frame(width: 130, alignment: .leading)
                     Picker(String(localized: "voice.language"), selection: $voiceLanguage) {
-                        Text(verbatim: "Français").tag("fr")
-                        Text(verbatim: "English").tag("en")
+                        ForEach(VoiceLang.allCases, id: \.self) { lang in
+                            Text(verbatim: lang.nativeName).tag(lang.rawValue)
+                        }
                     }
                     .labelsHidden()
                     .pickerStyle(.segmented)
-                    .frame(maxWidth: 180)
+                    .frame(maxWidth: 270)
                     .onChange(of: voiceLanguage) { _, _ in
                         // Chosen by hand: Coucou no longer offers to switch.
                         VoiceSettings.languageOfferDone = true
@@ -1489,10 +1513,15 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Picker(String(localized: "voice.tts-engine"), selection: $ttsEngine) {
                     Text(String(localized: "voice.tts-system")).tag("system")
+                    Text(verbatim: "VoiceStudio (local)").tag("voicestudio")
                     Text(verbatim: "ElevenLabs").tag("elevenlabs")
                 }
                 .labelsHidden()   // the box is already titled "Voice"
                 .frame(maxWidth: 260)
+
+                if ttsEngine == "voicestudio" {
+                    VoiceStudioSettingsRow()
+                }
 
                 if ttsEngine == "elevenlabs" {
                     HStack(spacing: 6) {
@@ -1531,7 +1560,7 @@ struct SettingsView: View {
                                })
                         .frame(maxWidth: 180)
                     }
-                    let current = VoiceSpeaker.macVoiceName(for: Locale(identifier: voiceLanguage == "fr" ? "fr-FR" : "en-US"),
+                    let current = VoiceSpeaker.macVoiceName(for: VoiceLang(code: voiceLanguage).locale,
                                                             gender: elevenGender)
                     Text(String(format: String(localized: "voice.mac-voice-current %@"), current))
                         .font(.system(size: 11))
@@ -2185,6 +2214,8 @@ struct SettingsView: View {
                 if let provider = ChatProvider(pillID: def.id), provider.isLocal {
                     let url = provider == .ollama ? state.ollamaServerURL : state.lmstudioServerURL
                     if url.isEmpty { return String(localized: "Not connected") }
+                } else if def.id == ChatProvider.claudeCode.pillID {
+                    if !ModelPickerView.claudeCodeInstalled { return String(localized: "Not installed") }
                 } else {
                     let keyId = def.id == "ai_anthropic" ? "anthropic-api-key"
                                : def.id == "ai_google"    ? "google-api-key" : "openai-api-key"

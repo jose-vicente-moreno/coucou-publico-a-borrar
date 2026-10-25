@@ -58,6 +58,17 @@ enum WakePhraseTests {
         checkNoMatch("okkkk coucou",         WakePhrase.split("okkkk coucou"))
         checkNoMatch("empty",                WakePhrase.split(""))
 
+        // Spanish recognition
+        checkMatch("ok cucú pon música",     WakePhrase.split("ok cucú pon música"),     cmd: "pon música")
+        checkMatch("Okey Coucou, añade GitHub",
+                   WakePhrase.split("Okey Coucou, añade GitHub"),               cmd: "añade GitHub")
+        checkMatch("oye coucou",             WakePhrase.split("oye coucou"),             cmd: "")
+        checkMatch("Oye cucu, ¿qué tiempo hace?",
+                   WakePhrase.split("Oye cucu, ¿qué tiempo hace?"),             cmd: "qué tiempo hace?") // leading "¿" stripped
+        checkMatch("ok cu cu quita Stripe",  WakePhrase.split("ok cu cu quita Stripe"),  cmd: "quita Stripe")
+        checkNoMatch("cucurucho",            WakePhrase.split("ok cucurucho"))
+        checkNoMatch("cucú alone",           WakePhrase.split("cucú"))
+
         // Summary
         if failures == 0 { print("\n\(total)/\(total) tests passed.") }
         else { print("\n\(failures) test(s) FAILED."); exit(1) }

@@ -15,6 +15,30 @@ final class AppState: ObservableObject {
     @Published var tasks: [AgentTask] = []
     @Published var focusId: String? = nil
 
+    // Agent sessions that have stopped and can be continued from the notch.
+    // One row per project, not per pill: three `claude` in three projects share
+    // a pill, and the whole point here is to show all three.
+    @Published var waitingSessions: [ResumableSession] = []
+    @Published var scanningWaitingSessions: Bool = false
+    private var waitingRefreshTask: Task<Void, Never>?
+
+    /// Rebuilds the waiting list from the transcripts on disk plus what the
+    /// hooks saw. Reading a few hundred transcripts takes a second or two, so it
+    /// runs off the main actor and only the result comes back.
+    func refreshWaitingSessions() {
+        waitingRefreshTask?.cancel()
+        let live = HookServer.shared.liveSessions()
+        scanningWaitingSessions = true
+        waitingRefreshTask = Task { [weak self] in
+            let rows = await Task.detached(priority: .utility) {
+                AgentSessionIndex.scan(live: live)
+            }.value
+            guard !Task.isCancelled else { return }
+            self?.waitingSessions = rows
+            self?.scanningWaitingSessions = false
+        }
+    }
+
     // Bot state override
     @Published var stateOverride: BotState? = nil
 
@@ -145,6 +169,15 @@ final class AppState: ObservableObject {
     @Published var moonshotChatModel: String = ChatProvider.moonshot.defaultModel {
         didSet { UserDefaults.standard.set(moonshotChatModel, forKey: "moonshotChatModel") }
     }
+    /// Claude Code chat: a model alias the CLI resolves (opus / sonnet / haiku).
+    @Published var claudeCodeModel: String = ChatProvider.claudeCode.defaultModel {
+        didSet { UserDefaults.standard.set(claudeCodeModel, forKey: "claudeCodeChatModel") }
+    }
+    /// Folder the Claude Code chat runs in — the user's "brain" (its CLAUDE.md,
+    /// skills and agents come along). Empty = the home folder.
+    @Published var brainVaultPath: String = "" {
+        didSet { UserDefaults.standard.set(brainVaultPath, forKey: "brainVaultPath") }
+    }
     @Published var ollamaServerURL: String = "" {
         didSet { UserDefaults.standard.set(ollamaServerURL, forKey: "ollamaServerURL") }
     }
@@ -201,6 +234,16 @@ final class AppState: ObservableObject {
             }
             return
         }
+        #if !APPSTORE
+        // Claude Code: the CLI resolves aliases itself, nothing to fetch.
+        if provider == .claudeCode {
+            fetchedProviderModels[provider] = ClaudeCodeChat.models
+            if !ClaudeCodeChat.models.contains(where: { $0.id == claudeCodeModel }) {
+                claudeCodeModel = ChatProvider.claudeCode.defaultModel
+            }
+            return
+        }
+        #endif
         // Remote providers: require API key
         guard let apiKey = KeychainStore.shared.get(provider.keychainKey), !apiKey.isEmpty else {
             providerModelFetchError[provider] = "No API key — add it in Settings."
@@ -217,7 +260,7 @@ final class AppState: ObservableObject {
             case .deepseek:  models = await ClaudeService.fetchOpenAICompatibleModels(baseURL: "https://api.deepseek.com/v1", apiKey: apiKey)
             case .qwen:      models = await ClaudeService.fetchOpenAICompatibleModels(baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1", apiKey: apiKey)
             case .moonshot:  models = await ClaudeService.fetchOpenAICompatibleModels(baseURL: "https://api.moonshot.cn/v1", apiKey: apiKey)
-            case .ollama, .lmstudio: models = []  // handled above
+            case .ollama, .lmstudio, .claudeCode: models = []  // handled above
             }
             loadingProviderModels.remove(provider)
             if models.isEmpty {
@@ -249,7 +292,7 @@ final class AppState: ObservableObject {
                     if !models.contains(where: { $0.id == moonshotChatModel }) {
                         moonshotChatModel = models.first!.id
                     }
-                case .ollama, .lmstudio: break
+                case .ollama, .lmstudio, .claudeCode: break
                 }
             }
         }
@@ -258,7 +301,8 @@ final class AppState: ObservableObject {
     /// The model currently active for chat (provider-aware).
     var activeChatModel: String {
         switch chatProvider {
-        case .anthropic: return claudeModel
+        case .anthropic:  return claudeModel
+        case .claudeCode: return claudeCodeModel
         case .google:    return googleChatModel
         case .openai:    return openAIChatModel
         case .ollama:    return ollamaChatModel
@@ -266,6 +310,7 @@ final class AppState: ObservableObject {
         case .deepseek:  return deepseekChatModel
         case .qwen:      return qwenChatModel
         case .moonshot:  return moonshotChatModel
+        case .claudeCode: return claudeCodeModel
         }
     }
 
@@ -300,6 +345,10 @@ final class AppState: ObservableObject {
     // Hovering the island opens it (folds shortly after the pointer leaves) — persisted, off by default
     @Published var openOnHover: Bool = false {
         didSet { UserDefaults.standard.set(openOnHover, forKey: "openOnHover") }
+    }
+    /// A pill other than the one shown finishes or fails: show its card for a moment (#683).
+    @Published var alertsFromAllPills: Bool = false {
+        didSet { UserDefaults.standard.set(alertsFromAllPills, forKey: "alertsFromAllPills") }
     }
     @Published var autoCloseInterval: TimeInterval = 15 {
         didSet { UserDefaults.standard.set(autoCloseInterval, forKey: "autoCloseInterval") }
@@ -534,10 +583,26 @@ final class AppState: ObservableObject {
         if let v = ud.string(forKey: "deepseekChatModel"), !v.isEmpty { deepseekChatModel = v }
         if let v = ud.string(forKey: "qwenChatModel"),     !v.isEmpty { qwenChatModel     = v }
         if let v = ud.string(forKey: "moonshotChatModel"), !v.isEmpty { moonshotChatModel = v }
+        #if !APPSTORE
+        // Only an alias the CLI knows goes to `--model`.
+        if let v = ud.string(forKey: "claudeCodeChatModel"), ClaudeCodeChat.models.contains(where: { $0.id == v }) {
+            claudeCodeModel = v
+        }
+        #endif
+        if let v = ud.string(forKey: "brainVaultPath"), !v.isEmpty { brainVaultPath = v }
+        #if !APPSTORE
+        // No provider chosen yet and no Anthropic key: use the Claude login when the CLI is there.
+        if ud.string(forKey: "chatProvider") == nil,
+           (KeychainStore.shared.get("anthropic-api-key") ?? "").isEmpty,
+           ClaudeCodeLocator.executable() != nil {
+            chatProvider = .claudeCode
+        }
+        #endif
         if let v = ud.string(forKey: "ollamaServerURL"), !v.isEmpty { ollamaServerURL = v }
         if let v = ud.string(forKey: "lmstudioServerURL"), !v.isEmpty { lmstudioServerURL = v }
         // Migrate old 60s default → 15s
         if let v = ud.object(forKey: "openOnHover") as? Bool { openOnHover = v }
+        if let v = ud.object(forKey: "alertsFromAllPills") as? Bool { alertsFromAllPills = v }
         if let v = ud.object(forKey: "autoCloseInterval") as? Double {
             autoCloseInterval = (v == 60) ? 15 : v
         }

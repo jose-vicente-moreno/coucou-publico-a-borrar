@@ -35,14 +35,18 @@ enum VoiceSettings {
         set { UserDefaults.standard.set(newValue, forKey: captionEnabledKey) }
     }
 
-    /// Language Coucou ANSWERS in: "en" (default) or "fr".
+    /// Language Coucou ANSWERS in: "en" (default), "fr" or "es".
     static var language: String {
         get { UserDefaults.standard.string(forKey: "voiceLanguage") ?? "en" }
         set { UserDefaults.standard.set(newValue, forKey: "voiceLanguage") }
     }
-    static var answerLocale: Locale { Locale(identifier: language == "fr" ? "fr-FR" : "en-US") }
+    static var voiceLang: VoiceLang {
+        get { VoiceLang(code: language) }
+        set { language = newValue.rawValue }
+    }
+    static var answerLocale: Locale { voiceLang.locale }
 
-    /// Language Coucou LISTENS to: "auto" (the Mac's dictation language, default), "en" or "fr".
+    /// Language Coucou LISTENS to: "auto" (the Mac's dictation language, default), "en", "fr" or "es".
     /// Independent from the answer language: speak French, hear English.
     static var listenLanguage: String {
         get { UserDefaults.standard.string(forKey: "voiceListenLanguage") ?? "auto" }
@@ -55,10 +59,21 @@ enum VoiceSettings {
         set { UserDefaults.standard.set(newValue, forKey: "voiceLanguageOfferDone") }
     }
 
-    /// Voice used to answer: "system" (macOS voices) or "elevenlabs" (user's API key).
+    /// Voice used to answer: "system" (macOS voices), "voicestudio" (local open-source
+    /// voices, VoiceStudio on this Mac) or "elevenlabs" (user's API key).
     static var ttsEngine: String {
         get { UserDefaults.standard.string(forKey: "voiceTTSEngine") ?? "system" }
         set { UserDefaults.standard.set(newValue, forKey: "voiceTTSEngine") }
+    }
+    /// VoiceStudio's address (any OpenAI-compatible speech server works).
+    static var voiceStudioURL: String {
+        get { UserDefaults.standard.string(forKey: "voiceStudioURL") ?? VoiceStudioAPI.defaultBaseURL }
+        set { UserDefaults.standard.set(newValue, forKey: "voiceStudioURL") }
+    }
+    /// VoiceStudio voice id; empty = the first one in the answer's language.
+    static var voiceStudioVoice: String {
+        get { UserDefaults.standard.string(forKey: "voiceStudioVoice") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "voiceStudioVoice") }
     }
     /// ElevenLabs voice: "female" (default) or "male".
     static var elevenGender: String {
@@ -75,6 +90,14 @@ enum VoiceSettings {
         let v = UserDefaults.standard.double(forKey: pitchKey(for: gender))
         let fallback = gender == "male" ? defaultPitchMale : defaultPitchFemale
         return v == 0 ? fallback : min(1.6, max(0.8, v))
+    }
+
+    /// Without an API key, Claude Code (the user's Claude login) is the voice brain only
+    /// once this is on: what is said after "OK Coucou" then goes to Anthropic. Off by
+    /// default, so installing Claude Code never sends speech anywhere by itself.
+    static var claudeCodeVoiceEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: "voiceClaudeCodeBrain") }
+        set { UserDefaults.standard.set(newValue, forKey: "voiceClaudeCodeBrain") }
     }
 
     /// Claude is Coucou's brain (the user's Anthropic API key): what I say after

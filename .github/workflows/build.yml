@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Lets a feature branch be built and downloaded without merging it first.
+  workflow_dispatch:
 
 jobs:
   build:
@@ -92,6 +94,47 @@ jobs:
       - name: Test chat parsing
         run: bash scripts/test-chat-parsing.sh
 
+      - name: Test Claude Code provider
+        run: bash scripts/test-claude-code.sh
+
+      - name: Test Coucou MCP relay
+        run: bash scripts/test-coucou-mcp.sh
+
+      - name: Test brain config
+        run: bash scripts/test-brain-config.sh
+
+      - name: Test brain inbox
+        run: bash scripts/test-brain-inbox.sh
+
+      - name: Test brain status
+        run: bash scripts/test-brain-status.sh
+
+      - name: Test VoiceStudio
+        run: bash scripts/test-voicestudio.sh
+
+      - name: Test agent sessions
+        run: bash scripts/test-agent-sessions.sh
+
+      - name: Test terminal focus (quiet when the terminal is in front)
+        run: bash scripts/test-terminal-focus.sh
+
+      # These three existed in the tree and no workflow ever ran them, so they
+      # were proving nothing. test-claude-host covers the terminal identification
+      # that the focus test above depends on.
+      - name: Test Claude host identification
+        run: bash scripts/test-claude-host.sh
+
+      # The nb-hook scripts are Swift string literals, so Swift never checks them.
+      # Without this the app builds green while every hook dies on a SyntaxError.
+      - name: Test the embedded nb-hook scripts compile
+        run: bash scripts/test-hook-script.sh
+
+      - name: Test shortcuts
+        run: bash scripts/test-shortcuts.sh
+
+      - name: Test voice backoff
+        run: bash scripts/test-voice-backoff.sh
+
       - name: Test plan gauge
         run: bash scripts/test-plan-gauge.sh
 
@@ -137,11 +180,33 @@ jobs:
             -configuration Release \
             build \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO 2>&1 | tee build.log || {
-              # Compiler errors as annotations, readable without downloading the log.
-              grep -E "error:" build.log | sort -u | head -30 | sed 's/^/::error::/'
-              exit 1
-            }
+            CODE_SIGNING_REQUIRED=NO 2>&1 | tee build.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            # 65 is a build error; 137 or 139 means the compiler was killed or
+            # crashed, and then there is no "error:" line to find.
+            echo "::error::xcodebuild exited with $status"
+            grep -E "error:" build.log | sort -u | head -30 | sed 's/^/::error::/' || true
+            echo "::group::last 60 lines of build.log"
+            tail -60 build.log
+            echo "::endgroup::"
+            echo "::group::runner resources"
+            df -h / /Users || true
+            vm_stat | head -6 || true
+            echo "::endgroup::"
+            exit 1
+          fi
+
+      # The job log gets truncated well before the end, so the only reliable
+      # way to see why a build died is to carry the file out of the runner.
+      - name: Keep the build log when the build fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          retention-days: 7
+          if-no-files-found: warn
 
       - name: Build App Store target (unsigned)
         run: |
@@ -181,3 +246,41 @@ jobs:
             -destination 'generic/platform=iOS' \
             build \
             CODE_SIGNING_ALLOWED=NO
+
+      # Makes the Release build downloadable from the run, so the app can be
+      # tried on a Mac that has no Xcode. It is unsigned, so it needs an ad-hoc
+      # signature before it will launch.
+      # A separate Release build for downloading and trying locally.
+      #
+      # It drops PHONE_LINK on purpose. An unsigned build carries no entitlements,
+      # so it has no iCloud container, and `CloudProbe.init()` traps inside CloudKit
+      # the moment the app finishes launching. The iPhone link cannot work in an
+      # unsigned copy anyway, so compiling it out is what makes the download
+      # actually start. Everything else, including the notch, the chat and the
+      # agent list, is unaffected.
+      - name: Build the downloadable app (no iCloud)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project NotchBuddy/NotchBuddy.xcodeproj \
+            -scheme NotchBuddy \
+            -configuration Release \
+            -derivedDataPath dd-local \
+            build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            SWIFT_ACTIVE_COMPILATION_CONDITIONS="" 2>&1 | tail -20
+
+      - name: Package the Mac app
+        run: |
+          set -euo pipefail
+          APP=dd-local/Build/Products/Release/Coucou.app
+          test -d "$APP"
+          ditto -c -k --keepParent "$APP" Coucou-unsigned.zip
+
+      - name: Upload the Mac app
+        uses: actions/upload-artifact@v4
+        with:
+          name: Coucou-unsigned
+          path: Coucou-unsigned.zip
+          retention-days: 7

@@ -40,6 +40,18 @@ enum TurnEndPolicyTests {
             "ends with 'euh' → extendedSilence")
         precondition(TurnEndPolicy.maxTurnTime == 15.0,    "maxTurnTime == 15.0")
 
+        // Spanish
+        precondition(TurnEndPolicy.silenceDelay(for: "anade github y") == TurnEndPolicy.extendedSilence,
+            "ends with 'y' → extendedSilence")
+        precondition(TurnEndPolicy.silenceDelay(for: "pon musica en") == TurnEndPolicy.extendedSilence,
+            "ends with 'en' → extendedSilence")
+        precondition(TurnEndPolicy.silenceDelay(for: "quita") == TurnEndPolicy.extendedSilence,
+            "bare Spanish verb → extendedSilence")
+        precondition(TurnEndPolicy.silenceDelay(for: "anade github") == TurnEndPolicy.baseSilence,
+            "complete Spanish command → baseSilence")
+        precondition(TurnEndPolicy.silenceDelay(for: "para") == TurnEndPolicy.baseSilence,
+            "'para' (stop) stays quick → baseSilence")
+
         print("TurnEndPolicyTests: all cases passed")
     }
 }

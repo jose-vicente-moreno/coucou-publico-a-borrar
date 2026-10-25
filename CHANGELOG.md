@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased (fork)
+
+- **Claude Code provider**: chat with your own Claude login, no API key: Coucou runs your `claude` CLI in a folder you pick (your "brain"), so its CLAUDE.md, skills and agents apply. Reading is free; commands, file changes and web fetches ask Allow / Deny in the notch. Settings → Chat → Claude Code (macOS, GitHub build). See [docs/BRAIN.md](docs/BRAIN.md)
+- **Flow and Notetaker on the same login**: Flow clean-up and Notetaker summaries use Claude Code when no Anthropic key is saved
+- **Brain pill**: your brain's queues in the notch (counts and quick actions from the brain's own `.coucou/brain.json`, see [docs/brain.example.json](docs/brain.example.json)), and « Save to brain » for a file dropped on the notch
+- **« OK Coucou » through Claude Code**: opt-in (Settings → Voice): with no key, your Claude login answers, and Coucou's voice tools reach it through a small local MCP server
+- **VoiceStudio voices**: local open-source voices for Coucou's answers (Settings → Voice → VoiceStudio): no key, nothing leaves the Mac, the Mac voice takes over while VoiceStudio is closed. ElevenLabs stays available
+- **« OK Coucou » en español**: Spanish joins French and English: speak it (Settings → Voice → You speak → Español, or automatic) and Coucou can answer in it too (Coucou answers in → Español). Pills, music, volume, playlists, questions about your services, the weather, web search, guided email, follow-ups and undo, the language offer and both voice brains work in Spanish, with Spanish Mac voices and ElevenLabs voices picked in the answer's language
+- **See every agent that has stopped, and tell it what to do next** *(macOS, GitHub build)*. A new **Agents waiting** panel next to the chat's model picker lists the Claude Code and Codex sessions that have stopped, one row per project, with the folder and how long it has been idle. Type the next instruction in a row and it goes straight to that session (`claude -p … --resume` or `codex exec resume`), or use **Send to all** to repeat one instruction across every waiting session, after a confirmation naming the count and the folders. The list is read from the transcripts on disk, so sessions from before Coucou was launched are there too, and it is merged with what the hooks saw, which adds the terminal each session ran in so a continued turn comes back on the same pill. Folders outside a repository, scratch directories and temporary paths are left out, which is what turns a few hundred daily transcripts into a list you can read; a setting shows everything instead. Continuing a session changes nothing about permissions: requests still come back to the notch to be approved by hand.
+- **Billed to your account, never the API**: an Anthropic key left in the environment is removed before the `claude` command starts, so the promise that Coucou uses your login stays true even on a Mac that exports one.
+
 ## Windows and Linux 0.5.0 — October 15, 2026
 
 Windows and Linux catch up with the Mac's 0.3.0 and 0.4.0: the Coucou window, Flow dictation, the Notetaker and « OK Coucou ». All of it free and open source.

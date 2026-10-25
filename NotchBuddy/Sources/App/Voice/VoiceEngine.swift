@@ -103,7 +103,8 @@ final class VoiceEngine: ObservableObject {
     private static let minRebuildInterval:       TimeInterval = 5.0
     private static let maxRebuildsPerMinute                   = 5
 
-    private static let cancelPhrases = ["annule", "annuler", "cancel", "laisse tomber", "never mind"]
+    private static let cancelPhrases = ["annule", "annuler", "cancel", "laisse tomber", "never mind",
+                                        "cancela", "cancelar", "olvídalo", "olvidalo", "déjalo", "dejalo"]
 
     // MARK: - Init
 
@@ -704,10 +705,11 @@ final class VoiceEngine: ObservableObject {
         switch VoiceSettings.listenLanguage {
         case "fr": candidates = [Locale(identifier: "fr-FR"), Locale(identifier: "fr-CA")]
         case "en": candidates = [Locale(identifier: "en-US"), Locale(identifier: "en-GB"), Locale(identifier: "en-AU")]
+        case "es": candidates = [Locale(identifier: "es-ES"), Locale(identifier: "es-MX"), Locale(identifier: "es-US")]
         default:   candidates = []
         }
         candidates += MacDictation.automaticLocales()
-        candidates += [Locale(identifier: "en-US"), Locale(identifier: "fr-FR")]
+        candidates += [Locale(identifier: "en-US"), Locale(identifier: "fr-FR"), Locale(identifier: "es-ES")]
         for locale in candidates {
             if let r = SFSpeechRecognizer(locale: locale),
                r.supportsOnDeviceRecognition, r.isAvailable {

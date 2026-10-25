@@ -56,7 +56,27 @@ final class HookServer: @unchecked Sendable {
     private var focusBeforeQuestion: String? = nil    // saved focus to restore after question
     private var activeSessionId: String? = nil        // current Claude Code session
     private var focusBeforeApproval: String? = nil    // saved focus to restore after approval
+    private var focusBeforeAlert: String? = nil       // saved focus while another pill's card shows
+    private var alertPill: String? = nil              // the pill that took the focus for its alert
     private var sessions = PillSessionRegistry()      // live sessions behind each pill
+
+    /// Every session the hooks have seen, in the shape the waiting list wants.
+    /// Reads the same state the event handlers do, so call it on the main queue.
+    func liveSessions() -> [ResumableSession] {
+        sessions.allSessions().compactMap { entry in
+            guard !entry.display.cwd.isEmpty else { return nil }
+            var session = ResumableSession(
+                agent: entry.pill == "agent_codex" ? .codex : .claudeCode,
+                sessionId: entry.display.session,
+                cwd: entry.display.cwd,
+                lastActivity: entry.lastSeen
+            )
+            session.hostApp = entry.display.hostApp
+            session.bundleId = entry.display.bundleId.isEmpty ? nil : entry.display.bundleId
+            session.isWorking = entry.isWorking
+            return session
+        }
+    }
 
     private init() {}
 
@@ -71,6 +91,7 @@ final class HookServer: @unchecked Sendable {
         case "agent_copilot": return "Handled in Copilot CLI."
         case "agent_muse":    return "Handled in Muse Code."
         case "agent_hermes":  return "Handled in Hermes."
+        case Self.brainPillId: return "Mochi stopped asking."
         default:              return "Handled in \(claudeHostName)."
         }
     }
@@ -84,6 +105,7 @@ final class HookServer: @unchecked Sendable {
         case "agent_copilot": return "Still waiting in Copilot CLI."
         case "agent_muse":    return "Still waiting in Muse Code."
         case "agent_hermes":  return "Still waiting in Hermes."
+        case Self.brainPillId: return "No answer: Mochi went on without it."
         default:              return "Still waiting in \(claudeHostName)."
         }
     }
@@ -98,17 +120,20 @@ final class HookServer: @unchecked Sendable {
             if shown.queueCount != approvals.count { state.pendingApproval?.queueCount = approvals.count }
             return
         }
-        state.updateTask(id: head.pillId, state: .approval)
         state.pendingApproval = ApprovalInfo(sessionId: head.sessionId, tool: head.tool,
                                               command: head.command, inputKey: head.inputKey,
                                               pillId: head.pillId, id: head.id,
                                               queueCount: approvals.count,
                                               projectName: head.projectName)
         state.isPinned = true
-        // Approval always forces the island open — the user must be able to respond.
-        // Save the focus once, so it comes back when the last request is gone.
-        if focusBeforeApproval == nil { focusBeforeApproval = state.focusId }
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.72)) { state.focusId = head.pillId }
+        // The chat's own requests have no pill to focus: the card opens over the chat.
+        if head.pillId != Self.brainPillId {
+            state.updateTask(id: head.pillId, state: .approval)
+            // Approval always forces the island open — the user must be able to respond.
+            // Save the focus once, so it comes back when the last request is gone.
+            if focusBeforeApproval == nil { focusBeforeApproval = state.focusId }
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.72)) { state.focusId = head.pillId }
+        }
         expandIfNeeded(to: .approval)
     }
 
@@ -135,7 +160,7 @@ final class HookServer: @unchecked Sendable {
         }
 
         let state = AppState.shared
-        if !approvals.hasEntries(forPill: entry.pillId) {
+        if entry.pillId != Self.brainPillId, !approvals.hasEntries(forPill: entry.pillId) {
             state.updateTask(id: entry.pillId, state: .working)
             clearPillBadge(id: entry.pillId)
         }
@@ -158,10 +183,16 @@ final class HookServer: @unchecked Sendable {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                 NotificationCenter.default.post(name: .islandCollapse, object: nil)
             }
+        } else if entry.pillId == Self.brainPillId {
+            state.view = .prompt   // back to the chat that asked
         } else {
             state.view = state.tasks.isEmpty ? .empty : .overview
         }
     }
+
+    /// Approvals of Coucou's own Claude Code chat are filed under this id. It is no
+    /// pill's id, so a brain request never changes the state of a pill.
+    static let brainPillId = "coucou_brain_chat"
 
     // MARK: - Question fd helpers
 
@@ -378,6 +409,26 @@ final class HookServer: @unchecked Sendable {
             return
         }
 
+        #if !APPSTORE
+        // Voice tools for the Claude Code voice brain (coucou-mcp.py): answered once the
+        // tool has run on the main actor.
+        if coucouKind == "mcp_voice" {
+            guard payload["token"] as? String == CoucouMCP.token else {
+                sendLine(fd: fd, text: CoucouMCP.json(CoucouMCP.callResult(text: "Not a Coucou voice session.", isError: true)))
+                close(fd)
+                return
+            }
+            Task { @MainActor in
+                let reply = await ClaudeVoiceBrain.shared.handleMCP(payload)
+                Task.detached { [weak self] in
+                    self?.sendLine(fd: fd, text: reply)
+                    close(fd)
+                }
+            }
+            return
+        }
+        #endif
+
         // AskUserQuestion via --ask PreToolUse hook — hold fd open like PermissionRequest
         if coucouKind == "ask_user_question" {
             let toolInput = payload["tool_input"] as? [String: Any] ?? [:]
@@ -417,8 +468,21 @@ final class HookServer: @unchecked Sendable {
                      ?? payload["conversation_id"] as? String
                      ?? "unknown"
         let cwd = payload["cwd"] as? String ?? ""
-        let rawName = URL(fileURLWithPath: cwd).lastPathComponent
-        let projectName = aliasProjectName(rawName.isEmpty ? "Session" : rawName)
+        let projectName = sessionName(payload, cwd: cwd)
+
+        #if !APPSTORE
+        // Coucou's own Claude Code chat shows its progress in the chat itself, so its
+        // events never drive a pill. They only settle a permission card made obsolete.
+        if payload["coucou_brain"] as? Bool == true {
+            let eventTool = payload["tool_name"] as? String ?? ""
+            let eventKey = Self.approvalInputKey(payload["tool_input"] as? [String: Any] ?? [:])
+            for entry in approvals.resolved(byEvent: name, sessionId: sessionId, pillId: Self.brainPillId,
+                                            tool: eventTool, inputKey: eventKey) {
+                removeApproval(id: entry.id)
+            }
+            return
+        }
+        #endif
 
         // Determine which pill this event belongs to.
         // coucou_agent must be lowercase, digits and hyphens, ≤ 24 chars.
@@ -466,11 +530,27 @@ final class HookServer: @unchecked Sendable {
             isExternalAgent = false
             hostApp = host.bundleId
         } else {
-            nbLog("Ignored \(name) from \(termProgram.isEmpty ? bundleId : termProgram) (\(projectName))")
-            return
+            // A Claude Code session whose host we cannot name: a background job, a
+            // `claude -p` run, anything started outside an editor or a known
+            // terminal. These used to be dropped right here, which made every
+            // headless session invisible to the island even though its hooks were
+            // firing correctly and the socket was live. They are ordinary Claude
+            // Code sessions and belong on the Claude pill like the rest. The only
+            // thing missing is the host app, so "Open terminal" has no window to
+            // raise and falls back to opening Terminal, which `openSessionApp`
+            // already does when it cannot activate anything.
+            agentId = "integration_claude"
+            isExternalAgent = false
         }
 
         let focused = state.focusId == agentId
+        // The user is already looking at the session's terminal, so a finish or an error is
+        // in front of them: the pill takes a badge and stays quiet, with no sound and no
+        // reveal. Taken from upstream (Louis-CFM/coucou, "quiet when terminal in front")
+        // and widened to the sessions the routing fix above added. See `TerminalFocus.swift`.
+        let terminalInFront = sessionTerminalIsInFront(
+            hostApp: hostApp, bundleId: bundleId,
+            frontmost: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
         // Several sessions can share one pill (it is chosen from the client, not from the
         // session). The registry tells a turn-ending event whether it may touch the pill,
         // and which session owns the project name shown on it.
@@ -588,6 +668,8 @@ final class HookServer: @unchecked Sendable {
 
         case "Stop":
             let scope = sessions.endTurn(pill: agentId, session: sessionId)
+            // A turn ending can hand the name to a sibling session that is still working.
+            applyDisplayOwner(pill: agentId)
             let rawFinal = (payload["last_assistant_message"] as? String)
                 ?? (payload["message"] as? String) ?? ""
             let finalText = DiffEngine.toOneLine(rawFinal)
@@ -604,8 +686,11 @@ final class HookServer: @unchecked Sendable {
             if !finalText.isEmpty, let idx = state.tasks.firstIndex(where: { $0.id == agentId }) {
                 state.tasks[idx].finalLine = finalText
             }
-            SoundEngine.shared.play("finish")
-            if focused {
+            if !terminalInFront { SoundEngine.shared.play("finish") }
+            // The pill goes back to idle in 5.2 s, so the waiting list, not the
+            // pill state, is what remembers that this session needs an answer.
+            state.refreshWaitingSessions()
+            if !terminalInFront && showsAlert(for: agentId, focused: focused) {
                 expandIfNeeded(to: .finished)
             } else {
                 setPillBadge(id: agentId, badge: .finished)
@@ -623,15 +708,17 @@ final class HookServer: @unchecked Sendable {
 
         case "StopFailure":
             RecapStore.shared.stop(sessionId: recapSessionId)
-            guard sessions.endTurn(pill: agentId, session: sessionId) == .pill else { break }
+            let failScope = sessions.endTurn(pill: agentId, session: sessionId)
+            applyDisplayOwner(pill: agentId)
+            guard failScope == .pill else { break }
             nbLog("StopFailure \(sessionId.prefix(8)) — \(payload.keys.sorted().joined(separator: ", ")): \(Self.stopFailureDetail(payload) ?? "no detail")")
             state.updateTask(id: agentId, state: .error)
             // The error view shows what went wrong (finalLine), not the last thing said before it.
             if let idx = state.tasks.firstIndex(where: { $0.id == agentId }) {
                 state.tasks[idx].finalLine = Self.stopFailureDetail(payload)
             }
-            SoundEngine.shared.play("error")
-            if focused {
+            if !terminalInFront { SoundEngine.shared.play("error") }
+            if !terminalInFront && showsAlert(for: agentId, focused: focused) {
                 expandIfNeeded(to: .error)
             } else {
                 setPillBadge(id: agentId, badge: .error)
@@ -640,7 +727,9 @@ final class HookServer: @unchecked Sendable {
         case "Interrupt":
             // Codex: user stopped the turn
             RecapStore.shared.stop(sessionId: recapSessionId)
-            guard sessions.endTurn(pill: agentId, session: sessionId) == .pill else { break }
+            let interruptScope = sessions.endTurn(pill: agentId, session: sessionId)
+            applyDisplayOwner(pill: agentId)
+            guard interruptScope == .pill else { break }
             activeSessionId = nil
             state.updateTask(id: agentId, state: .idle)
             clearPillBadge(id: agentId)
@@ -712,6 +801,36 @@ final class HookServer: @unchecked Sendable {
 
     // MARK: - Helpers
 
+    /// Whether a finish or an error opens the island. The pill shown always does; another pill
+    /// does too with "Show alerts from every pill" (#683): it takes the focus for its card, and
+    /// the pill that was shown comes back when the island closes. Never over an approval, a
+    /// question, or a card the user is busy in (chat, mail, settings…).
+    @MainActor
+    private func showsAlert(for pill: String, focused: Bool) -> Bool {
+        if focused { return true }
+        let state = AppState.shared
+        guard state.alertsFromAllPills, state.pendingApproval == nil, state.pendingQuestion == nil else { return false }
+        if state.mode == .expanded, ![IslandView.overview, .finished, .error, .empty].contains(state.view) { return false }
+        if focusBeforeAlert == nil { focusBeforeAlert = state.focusId }
+        alertPill = pill
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.72)) { state.focusId = pill }
+        return true
+    }
+
+    /// The island closed: the pill that was shown before another pill's alert comes back.
+    @MainActor
+    func restoreAlertFocus() {
+        guard let prev = focusBeforeAlert else { return }
+        let borrowed = alertPill
+        focusBeforeAlert = nil
+        alertPill = nil
+        let state = AppState.shared
+        // Only if the alert's pill is still the one shown (the user may have picked another).
+        guard state.pendingApproval == nil, state.focusId == borrowed, borrowed != prev,
+              state.tasks.contains(where: { $0.id == prev }) else { return }
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.72)) { state.focusId = prev }
+    }
+
     @MainActor
     private func expandIfNeeded(to view: IslandView) {
         let state = AppState.shared
@@ -759,8 +878,7 @@ final class HookServer: @unchecked Sendable {
                      ?? payload["conversation_id"] as? String
                      ?? "unknown"
         let cwd       = payload["cwd"]        as? String ?? ""
-        let rawName   = URL(fileURLWithPath: cwd).lastPathComponent
-        let projectName = aliasProjectName(rawName.isEmpty ? "Session" : rawName)
+        let projectName = sessionName(payload, cwd: cwd)
 
         let rawAgent = payload["coucou_agent"] as? String ?? ""
         let termProgram = payload["term_program"] as? String ?? ""
@@ -783,11 +901,15 @@ final class HookServer: @unchecked Sendable {
         let isHermesRequest  = rawAgent == "hermes"
             && UserDefaults.standard.bool(forKey: "hermesApprovalsEnabled")
             && (payload["coucou_has_transport"] as? Bool == true)
+        // A tool call of Coucou's own Claude Code chat: headless, so the notch is the
+        // only place it can be approved (no answer = the tool is denied).
+        let isBrainRequest   = payload["coucou_brain"] as? Bool == true
         #else
         let isCodexRequest   = false
         let isCopilotRequest = false
         let isMuseRequest    = false
         let isHermesRequest  = false
+        let isBrainRequest   = false
         #endif
         if !isCodexRequest && !isCopilotRequest && !isMuseRequest && !isHermesRequest && Self.validateAgent(rawAgent) != nil {
             Task.detached { [weak self] in
@@ -799,7 +921,9 @@ final class HookServer: @unchecked Sendable {
 
         // Determine which workspace pill owns the request.
         let pillId: String
-        if isCodexRequest {
+        if isBrainRequest {
+            pillId = Self.brainPillId
+        } else if isCodexRequest {
             pillId = "agent_codex"
         } else if isCopilotRequest {
             pillId = "agent_copilot"
@@ -816,7 +940,7 @@ final class HookServer: @unchecked Sendable {
         let terminalHost = isCursorEditor || isVSCodeEditor ? nil
             : ClaudeHost.terminal(termProgram: termProgram, bundleId: bundleId)
         let isTerminal = terminalHost != nil && ClaudeHost.terminalCardsEnabled
-        guard isCodexRequest || isCopilotRequest || isMuseRequest || isHermesRequest || isCursorEditor || isVSCodeEditor || isTerminal else {
+        guard isBrainRequest || isCodexRequest || isCopilotRequest || isMuseRequest || isHermesRequest || isCursorEditor || isVSCodeEditor || isTerminal else {
             Task.detached { [weak self] in
                 self?.sendLine(fd: fd, text: #"{"permissionDecision":"ask"}"#)
                 close(fd)
@@ -840,7 +964,11 @@ final class HookServer: @unchecked Sendable {
             return
         }
 
-        let command = toolInput["command"] as? String ?? tool
+        // What the card shows: the command, else the URL or file the tool would touch.
+        let command = toolInput["command"] as? String
+            ?? toolInput["url"] as? String
+            ?? toolInput["file_path"] as? String
+            ?? tool
 
         // Several requests can wait at once (several sessions or agents): they queue, the
         // card shows the oldest. Past the cap, the newest goes back to its own terminal.
@@ -856,14 +984,15 @@ final class HookServer: @unchecked Sendable {
             }
             return
         }
-        activeSessionId = sessionId
-
-        upsertTask(pill: pillId,
-                   display: PillSessionRegistry.Display(session: sessionId, projectName: projectName,
-                                                        cwd: cwd, hostApp: terminalHost?.bundleId,
-                                                        bundleId: bundleId),
-                   working: true, externalAgent: nil)
-        state.updateTask(id: pillId, state: .approval)
+        if !isBrainRequest {
+            activeSessionId = sessionId
+            upsertTask(pill: pillId,
+                       display: PillSessionRegistry.Display(session: sessionId, projectName: projectName,
+                                                            cwd: cwd, hostApp: terminalHost?.bundleId,
+                                                            bundleId: bundleId),
+                       working: true, externalAgent: nil)
+            state.updateTask(id: pillId, state: .approval)
+        }
         SoundEngine.shared.play("approval")
 
         // Monitor fd: if the agent closes the connection (answered in its own UI), drop the
@@ -940,8 +1069,7 @@ final class HookServer: @unchecked Sendable {
                      ?? payload["conversation_id"] as? String
                      ?? "unknown"
         let cwd       = payload["cwd"]        as? String ?? ""
-        let rawName   = URL(fileURLWithPath: cwd).lastPathComponent
-        let projectName = aliasProjectName(rawName.isEmpty ? "Session" : rawName)
+        let projectName = sessionName(payload, cwd: cwd)
 
         let rawAgent    = payload["coucou_agent"] as? String ?? ""
         let termProgram = payload["term_program"]  as? String ?? ""
@@ -1128,6 +1256,15 @@ final class HookServer: @unchecked Sendable {
 
     // MARK: - Project name alias mapping
 
+    /// The pill's name: the session's /rename title, else the folder the session started
+    /// in (the hook reads both from the transcript), else the current cwd's folder.
+    private func sessionName(_ payload: [String: Any], cwd: String) -> String {
+        if let title = payload["session_title"] as? String, !title.isEmpty { return title }
+        let root = payload["session_root"] as? String ?? ""
+        let rawName = URL(fileURLWithPath: root.isEmpty ? cwd : root).lastPathComponent
+        return aliasProjectName(rawName.isEmpty ? "Session" : rawName)
+    }
+
     private func aliasProjectName(_ name: String) -> String {
         let aliases: [String: String] = [
             "notch-buddy":  "Notch Buddy",
@@ -1295,6 +1432,8 @@ final class HookServer: @unchecked Sendable {
         let pyURL = wrapperURL.deletingLastPathComponent().appendingPathComponent("nb-hook.py")
         try? nbHookPythonGitHub.write(to: pyURL, atomically: true, encoding: .utf8)
         _ = try? FileManager.default.setAttributes([.posixPermissions: 0o755 as NSNumber], ofItemAtPath: pyURL.path)
+        // coucou-mcp.py: the voice tools for the Claude Code voice brain
+        CoucouMCP.install()
         #endif
     }
 
@@ -3248,6 +3387,36 @@ def normalize_tool_fields(payload):
     if not payload.get('cwd') and payload.get('workdir'):
         payload['cwd'] = payload['workdir']
 
+def add_session_name(payload):
+    # Name the pill after the folder the session started in, not the current cwd (the
+    # agent may cd into subfolders), or after the session's /rename title. Both come
+    # from the transcript: its first lines and the last custom-title entry.
+    path = payload.get('transcript_path') or ''
+    if not path:
+        return
+    try:
+        with open(path, 'rb') as f:
+            for line in f.read(16384).splitlines():
+                try:
+                    root = json.loads(line).get('cwd')
+                except Exception:
+                    continue
+                if root:
+                    payload['session_root'] = root
+                    break
+            f.seek(0, os.SEEK_END)
+            start = max(0, f.tell() - 65536)
+            f.seek(start)
+            lines = f.read().splitlines()
+            for line in reversed(lines[1:] if start else lines):
+                if b'"custom-title"' in line:
+                    title = json.loads(line).get('customTitle')
+                    if title:
+                        payload['session_title'] = title
+                    break
+    except Exception:
+        pass
+
 def main():
     raw = b''
     payload = {}
@@ -3315,6 +3484,7 @@ def main():
                 payload['cwd'] = paths[0]
             else:
                 payload['cwd'] = os.getcwd()
+        add_session_name(payload)
         try:
             s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             s.settimeout(125)
@@ -3369,6 +3539,9 @@ def main():
     # route them to the Claude Desktop pill instead of dropping them (no VS Code terminal).
     if not payload.get('coucou_agent') and os.environ.get('CLAUDE_CODE_ENTRYPOINT') == 'claude-desktop':
         payload['coucou_agent'] = 'claude-desktop'
+    # Runs Coucou starts itself for the Claude Code chat (see ClaudeCodeChat.swift).
+    if os.environ.get('COUCOU_BRAIN') == '1':
+        payload['coucou_brain'] = True
 
     # Enrich with terminal context
     env = os.environ
@@ -3382,6 +3555,7 @@ def main():
             payload['cwd'] = paths[0]
         else:
             payload['cwd'] = os.getcwd()
+    add_session_name(payload)
 
     # Normalize event name and tool fields (Gemini CLI / Antigravity → canonical names)
     try:
@@ -3555,6 +3729,36 @@ def normalize_tool_fields(payload):
     if not payload.get('cwd') and payload.get('workdir'):
         payload['cwd'] = payload['workdir']
 
+def add_session_name(payload):
+    # Name the pill after the folder the session started in, not the current cwd (the
+    # agent may cd into subfolders), or after the session's /rename title. Both come
+    # from the transcript: its first lines and the last custom-title entry.
+    path = payload.get('transcript_path') or ''
+    if not path:
+        return
+    try:
+        with open(path, 'rb') as f:
+            for line in f.read(16384).splitlines():
+                try:
+                    root = json.loads(line).get('cwd')
+                except Exception:
+                    continue
+                if root:
+                    payload['session_root'] = root
+                    break
+            f.seek(0, os.SEEK_END)
+            start = max(0, f.tell() - 65536)
+            f.seek(start)
+            lines = f.read().splitlines()
+            for line in reversed(lines[1:] if start else lines):
+                if b'"custom-title"' in line:
+                    title = json.loads(line).get('customTitle')
+                    if title:
+                        payload['session_title'] = title
+                    break
+    except Exception:
+        pass
+
 def main():
     raw = b''
     payload = {}
@@ -3622,6 +3826,7 @@ def main():
                 payload['cwd'] = paths[0]
             else:
                 payload['cwd'] = os.getcwd()
+        add_session_name(payload)
         try:
             s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             s.settimeout(125)
@@ -3676,6 +3881,9 @@ def main():
     # route them to the Claude Desktop pill instead of dropping them (no VS Code terminal).
     if not payload.get('coucou_agent') and os.environ.get('CLAUDE_CODE_ENTRYPOINT') == 'claude-desktop':
         payload['coucou_agent'] = 'claude-desktop'
+    # Runs Coucou starts itself for the Claude Code chat (see ClaudeCodeChat.swift).
+    if os.environ.get('COUCOU_BRAIN') == '1':
+        payload['coucou_brain'] = True
 
     env = os.environ
     payload.setdefault('term_program', env.get('TERM_PROGRAM', ''))
@@ -3688,6 +3896,7 @@ def main():
             payload['cwd'] = paths[0]
         else:
             payload['cwd'] = os.getcwd()
+    add_session_name(payload)
 
     # Normalize event name and tool fields (Gemini CLI / Antigravity → canonical names)
     try:

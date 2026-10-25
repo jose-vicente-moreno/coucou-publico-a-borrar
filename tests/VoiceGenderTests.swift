@@ -22,6 +22,13 @@ enum VoiceGenderTests {
         check("Siri female id", VoiceGenderNames.gender(name: "Siri Voice 2", identifier: "com.apple.ttsbundle.siri_female_en-US_compact"), "female")
         check("Siri male id", VoiceGenderNames.gender(name: "Siri Voice 1", identifier: "com.apple.ttsbundle.siri_male_en-US_compact"), "male")
         check("unknown", VoiceGenderNames.gender(name: "Zarvox", identifier: "com.apple.speech.synthesis.voice.Zarvox"), nil)
+        check("Mónica accent", VoiceGenderNames.gender(name: "Mónica", identifier: "com.apple.voice.compact.es-ES.Monica"), "female")
+        check("Paulina", VoiceGenderNames.gender(name: "Paulina (Enhanced)", identifier: "com.apple.voice.enhanced.es-MX.Paulina"), "female")
+        check("Marisol Premium", VoiceGenderNames.gender(name: "Marisol (Premium)", identifier: "com.apple.voice.premium.es-ES.Marisol"), "female")
+        check("Angélica", VoiceGenderNames.gender(name: "Angélica", identifier: "com.apple.voice.compact.es-MX.Angelica"), "female")
+        check("Jorge", VoiceGenderNames.gender(name: "Jorge", identifier: "com.apple.voice.compact.es-ES.Jorge"), "male")
+        check("Juan Enhanced", VoiceGenderNames.gender(name: "Juan (Enhanced)", identifier: "com.apple.voice.enhanced.es-MX.Juan"), "male")
+        check("Diego", VoiceGenderNames.gender(name: "Diego", identifier: "com.apple.voice.compact.es-AR.Diego"), "male")
 
         print("\n\(pass)/\(pass + fail) passed.")
         if fail > 0 { exit(1) }
