@@ -132,6 +132,9 @@ jobs:
       - name: Test the text shown when an agent fails
         run: bash scripts/test-stop-failure-text.sh
 
+      - name: Test the plan card's title
+        run: bash scripts/test-plan-title.sh
+
       - name: Test shortcuts
         run: bash scripts/test-shortcuts.sh
 
